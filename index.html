@@ -88,14 +88,19 @@
             } catch(e) { console.error("Error buscando estado en Supabase", e); }
         }
 
-        // Ya no enviamos la petición a la IP local, enviamos la orden directa a Supabase (tabla manual_override)
-        // Por ahora, como es control mundial, necesitamos que el ESP32 la lea.
-        // Simularemos un override actualizando la base de datos de control.
         async function togglePump(id, turnOn) {
-            // Nota: Para control bidireccional desde internet, 
-            // el ESP32 deberá escuchar los "manualState" desde Supabase.
-            alert("El control manual global a través de Supabase está en desarrollo de arquitectura. Volviendo a leer estado actual...");
-            fetchState();
+            try {
+                const { error } = await supabaseClient
+                    .from('remote_commands')
+                    .insert([{ pump_id: id, target_state: turnOn }]);
+
+                if (error) throw error;
+                // Refrescamos pantalla esperando que en pocos segs el ESP32 acuse recibo
+                fetchState(); 
+            } catch (e) {
+                console.error("Error enviando comando a Supabase", e);
+                alert("Hubo un error al enviar el comando.");
+            }
         }
 
         function renderPumps(pumpData, decisions) {
