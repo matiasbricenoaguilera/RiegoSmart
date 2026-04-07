@@ -173,25 +173,41 @@
         }
         function renderForms(pumps) {
             const container = document.getElementById('formsContainer');
+            const zonas = [
+                { nombre: 'Antejardín',   icono: '🌿', color: '#10b981' },
+                { nombre: 'Huerta',       icono: '🥬', color: '#22c55e' },
+                { nombre: 'Patio',        icono: '🪴', color: '#f59e0b' },
+                { nombre: 'Entrada Auto', icono: '🚗', color: '#3b82f6' },
+                { nombre: 'Macetas',      icono: '🪷', color: '#a855f7' },
+            ];
             container.innerHTML = '';
             pumps.forEach((p, idx) => {
+                const zona = zonas[idx] || { nombre: `Bomba ${idx+1}`, icono: '💧', color: '#64748b' };
                 const hh = p.startHour.toString().padStart(2, '0');
                 const mm = p.startMinute.toString().padStart(2, '0');
                 const timeStr = `${hh}:${mm}`;
                 container.innerHTML += `
-                    <div class="schedule-item">
-                        <div class="schedule-info"><h3>Bomba ${idx + 1}</h3></div>
+                    <div class="schedule-item" style="border-left: 4px solid ${zona.color};">
+                        <div class="schedule-info">
+                            <h3>${zona.icono} Bomba ${idx + 1} — <span style="color:${zona.color}">${zona.nombre}</span></h3>
+                            <small style="color:var(--text-muted)">Pin MOSFET ${idx + 1} | Programa ${editingProg + 1}</small>
+                        </div>
                         <div class="form-group">
                             <div><label>Hora Inicio</label><br><input type="time" id="time_${idx}" value="${timeStr}"></div>
-                            <div><label>Área (m2)</label><br><input type="number" id="area_${idx}" value="${p.area}" step="0.1"></div>
-                            <div><label>Caudal (L/min)</label><br><input type="number" id="flow_${idx}" value="${p.flowRate}" step="0.1"></div>
-                            <div><label>Umbral Humedad (%)</label><br><input type="number" id="thr_${idx}" value="${p.vwcThreshold}" step="1"></div>
-                            <div><label>Sensor Maestro</label><br><select id="sensor_${idx}"><option value="1" ${p.assignedStationID==1 ? 'selected' : ''}>Estación 1</option><option value="2" ${p.assignedStationID==2 ? 'selected' : ''}>Estación 2</option></select></div>
+                            <div><label>Área (m²)</label><br><input type="number" id="area_${idx}" value="${p.area}" step="0.1" min="0.1"></div>
+                            <div><label>Caudal (L/min)</label><br><input type="number" id="flow_${idx}" value="${p.flowRate}" step="0.1" min="0.1"></div>
+                            <div><label>Umbral Humedad (%)</label><br><input type="number" id="thr_${idx}" value="${p.vwcThreshold}" step="1" min="0" max="100"></div>
+                            <div><label>Sensor Maestro</label><br>
+                                <select id="sensor_${idx}">
+                                    <option value="1" ${p.assignedStationID==1 ? 'selected' : ''}>🌿 Estación 1 (Antejardín)</option>
+                                    <option value="2" ${p.assignedStationID==2 ? 'selected' : ''}>🥬 Estación 2 (Huerta)</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 `;
             });
-            container.innerHTML += `<div style="text-align: right; margin-top: 1rem;"><button class="btn-save" onclick="saveAll()">Guardar Configuración Programa ${editingProg + 1}</button></div>`;
+            container.innerHTML += `<div style="text-align: right; margin-top: 1rem;"><button class="btn-save" onclick="saveAll()">💾 Guardar Configuración Programa ${editingProg + 1}</button></div>`;
         }
         async function saveAll() {
             let payload = [];
