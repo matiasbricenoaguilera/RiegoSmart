@@ -65,13 +65,13 @@
 
         window.onload = () => {
             fetchState();
-            // Refresco cada 5 segundos contra la nube
-            setInterval(fetchState, 5000); 
+            setInterval(fetchState, 4000); 
         };
+
+        let pendingCommands = {}; // {pumpId: {time, expectedManual}}
 
         async function fetchState() {
             try {
-                // Leemos el registro 1 de system_state
                 const { data, error } = await supabaseClient
                     .from('system_state')
                     .select('*')
@@ -79,6 +79,19 @@
                     .single();
 
                 if (error) throw error;
+
+                // Limpiar pending si Supabase ya refleja el cambio esperado
+                if (data.pumps) {
+                    data.pumps.forEach((p, i) => {
+                        if (pendingCommands[i]) {
+                            if (p.manual === pendingCommands[i].expectedManual) {
+                                delete pendingCommands[i]; // ESP32 confirmó el cambio
+                            } else if (Date.now() - pendingCommands[i].time > 30000) {
+                                delete pendingCommands[i]; // Timeout de seguridad 30s
+                            }
+                        }
+                    });
+                }
 
                 renderPumps(data.pumps, data.decisions);
                 document.getElementById('activeProgName').innerText = "Programa " + ((data.active_program || 0) + 1);
@@ -88,13 +101,11 @@
             } catch(e) { console.error("Error buscando estado en Supabase", e); }
         }
 
-        let pendingCommands = {};
-
         async function togglePump(id, turnOn, btnElement) {
-            btnElement.innerText = '⏳ Enviando orden...';
+            btnElement.innerText = '⏳ Enviando...';
             btnElement.style.opacity = '0.6';
             btnElement.disabled = true;
-            pendingCommands[id] = Date.now(); // Marcamos como estado bloqueado visualmente
+            pendingCommands[id] = { time: Date.now(), expectedManual: turnOn };
             
             try {
                 const { error } = await supabaseClient
@@ -104,9 +115,7 @@
                 if (error) throw error;
             } catch (e) {
                 console.error("Error enviando comando a Supabase", e);
-                alert("Hubo un error al enviar el comando.");
-                btnElement.innerText = 'Error';
-                btnElement.disabled = false;
+                alert("Error al enviar comando.");
                 delete pendingCommands[id];
             }
         }
@@ -119,7 +128,7 @@
                 const isOn = state.active;
                 const manual = state.manual;
                 const d = decisions[index] || {};
-                const isPending = pendingCommands[index] && (Date.now() - pendingCommands[index] < 20000);
+                const isPending = !!pendingCommands[index];
                 
                 let btnHtml;
                 if (isPending) {
