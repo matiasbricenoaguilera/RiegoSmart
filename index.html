@@ -61,7 +61,7 @@
     <script>
         const SUPABASE_URL = 'https://ontyquiklrmebtzcvjyn.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9udHlxdWlrbHJtZWJ0emN2anluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NzMzMjIsImV4cCI6MjA5MTE0OTMyMn0.rmbcm5s7HdAnljRnVHueq-qU6zgITizaBDVpqyI9-vs';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         window.onload = () => {
             fetchState();
@@ -72,7 +72,7 @@
         async function fetchState() {
             try {
                 // Leemos el registro 1 de system_state
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('system_state')
                     .select('*')
                     .eq('id', 1)
