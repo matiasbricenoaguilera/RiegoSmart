@@ -88,18 +88,22 @@
             } catch(e) { console.error("Error buscando estado en Supabase", e); }
         }
 
-        async function togglePump(id, turnOn) {
+        async function togglePump(id, turnOn, btnElement) {
+            btnElement.innerText = '⏳ Enviando orden...';
+            btnElement.style.opacity = '0.6';
+            btnElement.disabled = true;
             try {
                 const { error } = await supabaseClient
                     .from('remote_commands')
                     .insert([{ pump_id: id, target_state: turnOn }]);
 
                 if (error) throw error;
-                // Refrescamos pantalla esperando que en pocos segs el ESP32 acuse recibo
-                fetchState(); 
+                // El siguiente fetchState (en un par de segundos) re-renderizará el botón normal
             } catch (e) {
                 console.error("Error enviando comando a Supabase", e);
                 alert("Hubo un error al enviar el comando.");
+                btnElement.innerText = 'Error';
+                btnElement.disabled = false;
             }
         }
 
@@ -132,8 +136,8 @@
                         <p style="color:var(--text-muted); margin-bottom: 1rem; font-size: 0.85rem;">
                             Modo: ${manual ? 'MANUAL FORZADO' : 'AUTOMÁTICO'}
                         </p>
-                        <button class="toggle-btn ${isOn && manual ? 'btn-danger' : ''}" onclick="togglePump(${index}, ${!(isOn && manual)})">
-                            Control Web (Pronto)
+                        <button class="toggle-btn ${isOn && manual ? 'btn-danger' : ''}" onclick="togglePump(${index}, ${!(isOn && manual)}, this)">
+                            ${isOn && manual ? 'Quitar Manual (Auto)' : 'Forzar Encendido'}
                         </button>
                     </div>
                 `;
