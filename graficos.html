@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Gráficos de Humedad</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        :root {
+            --bg-color: #0f172a; --card-bg: rgba(30, 41, 59, 0.7); --text-main: #f8fafc; --text-muted: #94a3b8;
+            --accent: #3b82f6; --success: #10b981;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background: var(--bg-color); color: var(--text-main); min-height: 100vh; }
+        header { padding: 2rem; text-align: center; background: linear-gradient(to right, #1e293b, var(--bg-color)); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        h1 { font-weight: 800; font-size: 2.5rem; background: -webkit-linear-gradient(#60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        nav { display: flex; justify-content: center; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+        a.btn-nav { text-decoration: none; padding: 0.5rem 1.5rem; background: var(--card-bg); color: var(--text-main); border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s ease; }
+        a.btn-nav:hover, a.btn-nav.active { background: var(--accent); border-color: var(--accent); }
+        .container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.5rem; text-align: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 2rem; }
+        .chart-container { position: relative; height: 400px; width: 100%; }
+        select { padding: 8px; border-radius: 8px; background: #1e293b; color: white; border: 1px solid #3b82f6; margin-bottom: 20px;}
+    </style>
+</head>
+<body>
+    <header>
+        <h1>💧 Historial de Humedad</h1>
+        <nav>
+            <a href="index.html" class="btn-nav">🕹️ Estado y Control</a>
+            <a href="schedule.html" class="btn-nav">⏱️ Programación</a>
+            <a href="graficos.html" class="btn-nav active">📈 Gráficos</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <h2>Humedad Promedio del Suelo</h2>
+            <p style="color:var(--text-muted); margin-bottom:15px; font-size: 0.9em;">
+                Evolución de las zonas Antejardín (E1) y Huerta (E2)
+            </p>
+            
+            <div style="text-align: right;">
+                <select id="timeRange" onchange="fetchGraphData()">
+                    <option value="20">Últimas 20 lecturas</option>
+                    <option value="50" selected>Últimas 50 lecturas</option>
+                    <option value="100">Últimas 100 lecturas</option>
+                </select>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="humidityChart"></canvas>
+            </div>
+            <p id="loadingMsg" style="color:var(--accent); font-weight:bold; margin-top:10px;">Cargando datos desde Supabase...</p>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://ontyquiklrmebtzcvjyn.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9udHlxdWlrbHJtZWJ0emN2anluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NzMzMjIsImV4cCI6MjA5MTE0OTMyMn0.rmbcm5s7HdAnljRnVHueq-qU6zgITizaBDVpqyI9-vs';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let myChart = null;
+
+        window.onload = () => {
+            fetchGraphData();
+            // Refrescar gráfica cada 2 minutos
+            setInterval(fetchGraphData, 120000); 
+        };
+
+        async function fetchGraphData() {
+            document.getElementById('loadingMsg').style.display = 'block';
+            let limit = parseInt(document.getElementById('timeRange').value);
+            
+            try {
+                // Traemos los últimos datos (limit) por estación y luego los ordenamos cronológicamente
+                const { data, error } = await supabaseClient
+                    .from('sensor_data')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(limit * 2); // el doble porque hay 2 estaciones mezcladas
+
+                if (error) throw error;
+
+                // Invertimos para que queden en orden cronológico (izquierda antiguo, derecha nuevo)
+                data.reverse();
+
+                let labels = [];
+                let dataE1 = [];
+                let dataE2 = [];
+
+                let addedLabels = new Set();
+
+                // Procesamos los datos
+                for (let row of data) {
+                    let d = new Date(row.created_at);
+                    // Formato hora: hh:mm
+                    let timeLabel = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+                    
+                    if (!addedLabels.has(timeLabel)) {
+                        labels.push(timeLabel);
+                        addedLabels.add(timeLabel);
+                        // Rellenar huecos si en esa hora exacta solo transmitió una estación
+                        dataE1.push(null);
+                        dataE2.push(null);
+                    }
+
+                    // Encontrar el indice donde empujamos la label actual
+                    let idx = labels.indexOf(timeLabel);
+
+                    if (row.estacion === 1) {
+                        dataE1[idx] = row.humedad;
+                    } else if (row.estacion === 2) {
+                        dataE2[idx] = row.humedad;
+                    }
+                }
+
+                // Llenar "huecos" con el dato anterior más cercano para evitar líneas cortadas
+                let last1 = null; let last2 = null;
+                for (let i = 0; i < labels.length; i++) {
+                    if (dataE1[i] !== null) last1 = dataE1[i]; else dataE1[i] = last1;
+                    if (dataE2[i] !== null) last2 = dataE2[i]; else dataE2[i] = last2;
+                }
+
+                renderChart(labels, dataE1, dataE2);
+                document.getElementById('loadingMsg').style.display = 'none';
+
+            } catch (e) {
+                console.error("Error al graficar", e);
+                document.getElementById('loadingMsg').innerText = 'Error al cargar datos.';
+                document.getElementById('loadingMsg').style.color = 'red';
+            }
+        }
+
+        function renderChart(labels, dataE1, dataE2) {
+            const ctx = document.getElementById('humidityChart').getContext('2d');
+            
+            if (myChart != null) {
+                myChart.destroy();
+            }
+
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Antejardín (Promedio E1)',
+                            data: dataE1,
+                            borderColor: '#10b981', // success color
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4 // Suaviza la curva
+                        },
+                        {
+                            label: 'Huerta (Promedio E2)',
+                            data: dataE2,
+                            borderColor: '#3b82f6', // accent color
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#f8fafc' } }
+                    },
+                    scales: {
+                        x: { 
+                            ticks: { color: '#94a3b8' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        y: {
+                            ticks: { color: '#94a3b8', callback: function(val) { return val + '%' } },
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            min: 0,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
