@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horarios | Riego Smart</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        :root {
+            --bg-color: #0f172a; --card-bg: rgba(30, 41, 59, 0.7); --text-main: #f8fafc; --text-muted: #94a3b8;
+            --accent: #3b82f6; --success: #10b981; --danger: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background: var(--bg-color); color: var(--text-main); min-height: 100vh; }
+        header { padding: 2rem; text-align: center; background: linear-gradient(to right, #1e293b, var(--bg-color)); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        h1 { font-weight: 800; font-size: 2.5rem; background: -webkit-linear-gradient(#60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        nav { display: flex; justify-content: center; gap: 1rem; margin-top: 1rem; }
+        a.btn-nav { text-decoration: none; padding: 0.5rem 1.5rem; background: var(--card-bg); color: var(--text-main); border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s; }
+        a.btn-nav:hover, a.btn-nav.active { background: var(--accent); border-color: var(--accent); }
+        .container { max-width: 800px; margin: 3rem auto; padding: 0 1rem; }
+        .schedule-item { background: var(--card-bg); padding: 1.5rem; border-radius: 12px; margin-bottom: 1rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; border: 1px solid rgba(255,255,255,0.1); }
+        .schedule-info h3 { margin-bottom: 0.5rem; font-size: 1.25rem; }
+        .form-group { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-top: 0.5rem; }
+        label { color: var(--text-muted); font-size: 0.9rem; }
+        input, select { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.5rem; border-radius: 6px; }
+        input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+        .btn-save { background: var(--success); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-save:hover { background: #059669; }
+        #toast { position: fixed; bottom: 20px; right: 20px; background: var(--success); color: white; padding: 1rem 2rem; border-radius: 8px; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .clock-container { position: absolute; top: 1.5rem; right: 1.5rem; background: var(--card-bg); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); text-align: right; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); backdrop-filter: blur(10px); z-index: 10; }
+        .clock-ntp { color: var(--accent); font-weight: 800; font-size: 1.2rem; display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+        .clock-rtc { color: var(--text-muted); font-size: 0.8rem; margin-top: 2px; }
+        .program-selector { display: flex; justify-content: center; gap: 10px; margin-bottom: 2rem; }
+        .prog-btn { background: #334155; border: 1px solid rgba(255,255,255,0.1); color: white; padding: 10px 20px; border-radius: 12px; cursor: pointer; font-weight: 600; }
+        .prog-btn.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+        .prog-btn.current { border: 2px solid var(--success); }
+        .current-badge { color: var(--success); font-weight: bold; font-size: 0.8rem; display: block; margin-top: 5px; }
+        @media (max-width: 600px) { .clock-container { position: relative; top: 0; right: 0; margin: 0 auto 1rem; text-align: center; display: inline-block; } }
+        
+        .config-ip { margin-top: 20px; font-size: 0.9rem; color: #fff; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 10px; display: inline-block; }
+        .config-ip input { background: transparent; border: 1px solid var(--accent); color: white; padding: 5px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="clock-container">
+            <div class="clock-ntp">🌐 <span id="ntpTime">--:--:--</span></div>
+            <div class="clock-rtc">⏱ RTC: <span id="rtcTime">--:--:--</span></div>
+        </div>
+        <h1>⏳ Programación de Riego</h1>
+        <nav>
+            <a href="index.html" class="btn-nav">🕹️ Estado y Control</a>
+            <a href="schedule.html" class="btn-nav active">⏱️ Programación</a>
+        </nav>
+        
+        <div class="config-ip">
+            IP ESP32 Central: <input type="text" id="espIp" value="192.168.1.85" onchange="saveIP()">
+        </div>
+    </header>
+    <div class="container">
+        <div class="program-selector" id="programTabs">
+            <button class="prog-btn active" onclick="selectProgTab(0)">Programa 1</button>
+            <button class="prog-btn" onclick="selectProgTab(1)">Programa 2</button>
+            <button class="prog-btn" onclick="selectProgTab(2)">Programa 3</button>
+        </div>
+        <div id="activeProgramHeader" style="text-align: center; margin-bottom: 2rem; display:none;">
+            <button class="btn-save" style="background:#3b82f6" onclick="activateThisProg()">✅ Establecer como Programa Vigente</button>
+        </div>
+        <div id="formsContainer">
+            <p>Cargando programación...</p>
+        </div>
+    </div>
+    <div id="toast">✔ Configuración actualizada</div>
+    <div class="container" id="sensorsContainer" style="margin-top: 5rem;">
+        <h2 style="text-align: center; margin-bottom: 2rem;">🧪 Calibración de Sensores</h2>
+        <div id="sensorList"></div>
+        <div class="schedule-item" style="background: rgba(16, 185, 129, 0.1); border-color: var(--success);">
+            <div class="form-group" style="width:100%">
+                <input type="text" id="newName" placeholder="Nombre Sensor (ej. Huerta)">
+                <input type="number" id="newSID" placeholder="Estación ID" style="width:100px">
+                <input type="number" id="newID" placeholder="Sensor ID" style="width:100px">
+                <input type="number" id="newMin" placeholder="Mín (Mojado)" style="width:110px">
+                <input type="number" id="newMax" placeholder="Máx (Seco)" style="width:110px">
+                <button class="btn-save" onclick="addSensor()">➕ Añadir Sensor</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let baseUrl = "http://192.168.1.85";
+        let editingProg = 0;
+        let activeProg = 0;
+        
+        function saveIP() {
+            baseUrl = "http://" + document.getElementById('espIp').value;
+            localStorage.setItem('espIp', document.getElementById('espIp').value);
+            fetchSchedules();
+        }
+        
+        window.onload = () => {
+            if(localStorage.getItem('espIp')) {
+                document.getElementById('espIp').value = localStorage.getItem('espIp');
+                baseUrl = "http://" + localStorage.getItem('espIp');
+            }
+            fetchTime();
+            setInterval(fetchTime, 15000);
+            fetchSchedules();
+        };
+
+        async function fetchSchedules() {
+            try {
+                const res = await fetch(`${baseUrl}/api/schedule?prog=${editingProg}`);
+                const data = await res.json();
+                activeProg = data.active;
+                renderForms(data.pumps);
+                updateTabs();
+                fetchSensors();
+            } catch(e) { console.error(e); }
+        }
+        async function fetchSensors() {
+            try {
+                const res = await fetch(`${baseUrl}/api/sensors/list`);
+                const data = await res.json();
+                const list = document.getElementById('sensorList');
+                list.innerHTML = '';
+                data.forEach(s => {
+                    const fail = s.fail;
+                    list.innerHTML += `
+                        <div class="schedule-item" style="${fail ? 'border-color:var(--danger); background:rgba(239,68,68,0.1)' : ''}">
+                            <div><strong>${s.name}</strong> (Estación ${s.stationID}, Sensor ${s.sensorID})</div>
+                            <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:5px; margin:10px 0;">
+                                ${fail ? `<span style="color:var(--danger); font-weight:bold;">🚫 FALLA / DESCONECTADO</span><br><small>Recibido: ${s.raw}</small>` : `<span style="color:var(--accent)">📊 Lectura Actual (RAW): <b style="font-size:1.2rem">${s.raw}</b></span>`}
+                                <br><small style="color:var(--text-muted)">Rango: [Mín ${s.min} | Máx ${s.max}]</small>
+                            </div>
+                            <button onclick="removeSensor(${s.stationID}, ${s.sensorID})" style="background:var(--danger); border:none; color:white; padding:5px 10px; border-radius:5px; cursor:pointer;">Eliminar</button>
+                        </div>
+                    `;
+                });
+            } catch(e) { console.error(e); }
+        }
+        async function addSensor() {
+            const name = document.getElementById('newName').value;
+            const sid = document.getElementById('newSID').value;
+            const id = document.getElementById('newID').value;
+            const min = document.getElementById('newMin').value;
+            const max = document.getElementById('newMax').value;
+            await fetch(`${baseUrl}/api/sensors/add?name=${name}&sid=${sid}&id=${id}&min=${min}&max=${max}`);
+            fetchSensors();
+            showToast("Sensor añadido y calibrado");
+        }
+        async function removeSensor(sid, id) {
+            await fetch(`${baseUrl}/api/sensors/remove?sid=${sid}&id=${id}`);
+            fetchSensors();
+        }
+        function updateTabs() {
+            document.querySelectorAll('.prog-btn').forEach((btn, i) => {
+                btn.className = 'prog-btn' + (i === editingProg ? ' active' : '') + (i === activeProg ? ' current' : '');
+                const oldBadge = btn.querySelector('.current-badge');
+                if(oldBadge) oldBadge.remove();
+                if(i === activeProg) btn.innerHTML += '<span class="current-badge">VIGENTE</span>';
+            });
+            document.getElementById('activeProgramHeader').style.display = (editingProg === activeProg) ? 'none' : 'block';
+        }
+        function selectProgTab(idx) {
+            editingProg = idx;
+            fetchSchedules();
+        }
+        async function activateThisProg() {
+            await fetch(`${baseUrl}/api/program/select?id=${editingProg}`);
+            fetchSchedules();
+            showToast("Programa activado como vigente");
+        }
+        function renderForms(pumps) {
+            const container = document.getElementById('formsContainer');
+            container.innerHTML = '';
+            pumps.forEach((p, idx) => {
+                const hh = p.startHour.toString().padStart(2, '0');
+                const mm = p.startMinute.toString().padStart(2, '0');
+                const timeStr = `${hh}:${mm}`;
+                container.innerHTML += `
+                    <div class="schedule-item">
+                        <div class="schedule-info"><h3>Bomba ${idx + 1}</h3></div>
+                        <div class="form-group">
+                            <div><label>Hora Inicio</label><br><input type="time" id="time_${idx}" value="${timeStr}"></div>
+                            <div><label>Área (m2)</label><br><input type="number" id="area_${idx}" value="${p.area}" step="0.1"></div>
+                            <div><label>Caudal (L/min)</label><br><input type="number" id="flow_${idx}" value="${p.flowRate}" step="0.1"></div>
+                            <div><label>Umbral Humedad (%)</label><br><input type="number" id="thr_${idx}" value="${p.vwcThreshold}" step="1"></div>
+                            <div><label>Sensor Maestro</label><br><select id="sensor_${idx}"><option value="1" ${p.assignedStationID==1 ? 'selected' : ''}>Estación 1</option><option value="2" ${p.assignedStationID==2 ? 'selected' : ''}>Estación 2</option></select></div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML += `<div style="text-align: right; margin-top: 1rem;"><button class="btn-save" onclick="saveAll()">Guardar Configuración Programa ${editingProg + 1}</button></div>`;
+        }
+        async function saveAll() {
+            let payload = [];
+            for(let i=0; i<5; i++) {
+                const timeVal = document.getElementById(`time_${i}`).value;
+                const [h, m] = timeVal.split(':');
+                const sid = document.getElementById(`sensor_${i}`).value;
+                payload.push({id: i, startHour: parseInt(h, 10), startMinute: parseInt(m, 10), flowRate: parseFloat(document.getElementById(`flow_${i}`).value), area: parseFloat(document.getElementById(`area_${i}`).value), vwcThreshold: parseFloat(document.getElementById(`thr_${i}`).value), assignedStationID: parseInt(sid, 10)});
+            }
+            const res = await fetch(`${baseUrl}/api/schedule/save?prog=${editingProg}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+            if(res.ok) showToast("Configuración guardada");
+        }
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = "✔ " + msg;
+            t.style.opacity = 1;
+            setTimeout(() => t.style.opacity = 0, 3000);
+        }
+        async function fetchTime() {
+            try {
+                const res = await fetch(`${baseUrl}/api/time`);
+                const data = await res.json();
+                document.getElementById('ntpTime').innerText = data.ntp;
+                document.getElementById('rtcTime').innerText = data.rtc;
+            } catch(e) {}
+        }
+    </script>
+</body>
+</html>
