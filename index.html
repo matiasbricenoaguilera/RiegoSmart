@@ -119,7 +119,23 @@
                 const isOn = state.active;
                 const manual = state.manual;
                 const d = decisions[index] || {};
+                const isPending = pendingCommands[index] && (Date.now() - pendingCommands[index] < 20000);
                 
+                let btnHtml;
+                if (isPending) {
+                    btnHtml = `<button class="toggle-btn" disabled style="opacity:0.6; cursor:wait; background:#f59e0b">
+                        ⏳ Esperando confirmación del ESP32...
+                    </button>`;
+                } else if (manual) {
+                    btnHtml = `<button class="toggle-btn btn-danger" onclick="togglePump(${index}, false, this)">
+                        🔴 APAGAR (Quitar Manual)
+                    </button>`;
+                } else {
+                    btnHtml = `<button class="toggle-btn" onclick="togglePump(${index}, true, this)">
+                        🟢 FORZAR ENCENDIDO
+                    </button>`;
+                }
+
                 grid.innerHTML += `
                     <div class="card">
                         <div class="pump-icon ${isOn ? 'on' : ''}">💦</div>
@@ -138,17 +154,9 @@
                         </div>
 
                         <p style="color:var(--text-muted); margin-bottom: 1rem; font-size: 0.85rem;">
-                            Modo: ${manual ? 'MANUAL FORZADO' : 'AUTOMÁTICO'}
+                            Modo: ${manual ? '🔴 MANUAL FORZADO' : '🟢 AUTOMÁTICO'}
                         </p>
-                        ${pendingCommands[index] && (Date.now() - pendingCommands[index] < 8000) ? 
-                        `<button class="toggle-btn" disabled style="opacity:0.6; cursor:wait">
-                            ⏳ Hardware procesando...
-                        </button>` 
-                        : 
-                        `<button class="toggle-btn ${isOn && manual ? 'btn-danger' : ''}" onclick="togglePump(${index}, ${!(isOn && manual)}, this)">
-                            ${isOn && manual ? 'Quitar Manual (Auto)' : 'Forzar Encendido'}
-                        </button>`
-                        }
+                        ${btnHtml}
                     </div>
                 `;
             });
