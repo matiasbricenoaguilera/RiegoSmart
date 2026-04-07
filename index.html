@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard | Riego Smart</title>
+    <title>Dashboard | Riego Smart (Nube)</title>
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
         :root {
@@ -30,96 +32,80 @@
         .toggle-btn:hover { background: var(--accent-hover); }
         .toggle-btn.btn-danger { background: var(--danger); }
         .toggle-btn.btn-danger:hover { background: #dc2626; }
+        .cloud-badge { background: var(--accent); padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; vertical-align: top; margin-left: 10px; }
         .clock-container { position: absolute; top: 1.5rem; right: 1.5rem; background: var(--card-bg); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); text-align: right; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); backdrop-filter: blur(10px); z-index: 10; }
-        .clock-ntp { color: var(--accent); font-weight: 800; font-size: 1.2rem; display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
-        .clock-rtc { color: var(--text-muted); font-size: 0.8rem; margin-top: 2px; }
-        .clock-set { margin-top: 8px; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.2); padding: 5px; border-radius: 4px; display: flex; gap: 5px; }
-        .clock-set input { background: transparent; border: none; color: white; width: 100px; font-size: 0.75rem; }
-        .clock-set button { background: var(--accent); border: none; color: white; padding: 2px 5px; border-radius: 3px; cursor: pointer; }
         @media (max-width: 600px) { .clock-container { position: relative; top: 0; right: 0; margin: 0 auto 1rem; text-align: center; display: inline-block; } }
-        
-        .config-ip { margin-top: 20px; font-size: 0.9rem; color: #fff; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 10px; display: inline-block; }
-        .config-ip input { background: transparent; border: 1px solid var(--accent); color: white; padding: 5px; border-radius: 5px; }
     </style>
 </head>
 <body>
     <header>
-        <div class="clock-container">
-            <div class="clock-ntp">🌐 <span id="ntpTime">--:--:--</span></div>
-            <div class="clock-rtc">⏱ RTC: <span id="rtcTime">--:--:--</span></div>
-            <div class="clock-set">
-                <input type="datetime-local" id="manualDate">
-                <button onclick="setRtc()">Ajustar</button>
-            </div>
+        <div class="clock-container" style="font-size:0.9rem">
+            <span style="color:var(--success)">Sincronizado vía Nube ☁️</span><br>
+            <small id="lastRefresh">Última act: --:--:--</small>
         </div>
-        <h1>💧 Riego Smart</h1>
+        <h1>💧 Riego Smart <span class="cloud-badge">Supabase</span></h1>
         <nav>
-            <a href="index.html" class="btn-nav active">🕹️ Estado y Control</a>
-            <a href="schedule.html" class="btn-nav">⏱️ Programación</a>
+            <a href="index.html" class="btn-nav active">🕹️ Estado y Control Mundial</a>
+            <a href="schedule.html" class="btn-nav">⏱️ Programación Local</a>
         </nav>
-        
-        <div class="config-ip">
-            IP ESP32 Central: <input type="text" id="espIp" value="192.168.1.85" onchange="saveIP()"> 
-            <small>(Asegúrate de estar en el mismo Wi-Fi)</small>
-        </div>
     </header>
     <div class="container">
         <div style="text-align: center; margin-bottom: 2rem;">
             <p style="color:var(--text-muted)">Programa Activo: <strong id="activeProgName" style="color:var(--accent)">--</strong></p>
         </div>
         <div class="grid" id="pumpGrid">
-            <p>Cargando estado...</p>
+            <p>Conectando a Supabase...</p>
         </div>
     </div>
     
     <script>
-        let baseUrl = "http://192.168.1.85";
-        
-        function saveIP() {
-            baseUrl = "http://" + document.getElementById('espIp').value;
-            localStorage.setItem('espIp', document.getElementById('espIp').value);
-            fetchState();
-        }
-        
+        const SUPABASE_URL = 'https://ontyquiklrmebtzcvjyn.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9udHlxdWlrbHJtZWJ0emN2anluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NzMzMjIsImV4cCI6MjA5MTE0OTMyMn0.rmbcm5s7HdAnljRnVHueq-qU6zgITizaBDVpqyI9-vs';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
         window.onload = () => {
-            if(localStorage.getItem('espIp')) {
-                document.getElementById('espIp').value = localStorage.getItem('espIp');
-                baseUrl = "http://" + localStorage.getItem('espIp');
-            }
             fetchState();
-            fetchTime();
-            setInterval(fetchState, 3000); 
-            setInterval(fetchTime, 10000); 
+            // Refresco cada 5 segundos contra la nube
+            setInterval(fetchState, 5000); 
         };
 
         async function fetchState() {
             try {
-                const res = await fetch(`${baseUrl}/api/state`);
-                const data = await res.json();
+                // Leemos el registro 1 de system_state
+                const { data, error } = await supabase
+                    .from('system_state')
+                    .select('*')
+                    .eq('id', 1)
+                    .single();
+
+                if (error) throw error;
+
                 renderPumps(data.pumps, data.decisions);
-                document.getElementById('activeProgName').innerText = "Programa " + (data.active + 1);
-            } catch(e) { console.error("Error buscando estado", e); }
+                document.getElementById('activeProgName').innerText = "Programa " + ((data.active_program || 0) + 1);
+                
+                let now = new Date();
+                document.getElementById('lastRefresh').innerText = "Última act: " + now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0') + ":" + now.getSeconds().toString().padStart(2, '0');
+            } catch(e) { console.error("Error buscando estado en Supabase", e); }
         }
 
-        async function setRtc() {
-            const val = document.getElementById('manualDate').value;
-            if(!val) return alert("Selecciona una fecha y hora");
-            await fetch(`${baseUrl}/api/time/set?val=${val}`);
-            fetchTime();
-        }
-
+        // Ya no enviamos la petición a la IP local, enviamos la orden directa a Supabase (tabla manual_override)
+        // Por ahora, como es control mundial, necesitamos que el ESP32 la lea.
+        // Simularemos un override actualizando la base de datos de control.
         async function togglePump(id, turnOn) {
-            await fetch(`${baseUrl}/api/toggle?id=${id}&state=${turnOn?1:0}`);
+            // Nota: Para control bidireccional desde internet, 
+            // el ESP32 deberá escuchar los "manualState" desde Supabase.
+            alert("El control manual global a través de Supabase está en desarrollo de arquitectura. Volviendo a leer estado actual...");
             fetchState();
         }
 
         function renderPumps(pumpData, decisions) {
+            if(!pumpData || !decisions) return;
             const grid = document.getElementById('pumpGrid');
             grid.innerHTML = '';
             pumpData.forEach((state, index) => {
                 const isOn = state.active;
                 const manual = state.manual;
-                const d = decisions[index];
+                const d = decisions[index] || {};
                 
                 grid.innerHTML += `
                     <div class="card">
@@ -129,10 +115,10 @@
                         
                         <div style="background:rgba(0,0,0,0.2); border-radius:8px; padding:10px; margin-bottom:15px; font-size:0.8rem; text-align:left;">
                             <strong style="color:var(--accent)">🧠 Motor de Decisión:</strong><br>
-                            <span style="color:#fff">Humedad: ${d.hum}% <small>(${d.source})</small></span><br>
-                            <span style="color:#fff">Necesidad: ${d.mm} mm</span><br>
-                            <span style="color:var(--warn)">Tiempo: ${d.min} min</span><br>
-                            <small style="color:var(--text-muted)">Estado: ${d.reason}</small><br>
+                            <span style="color:#fff">Humedad: ${d.hum || 0}% <small>(${d.source || 'N/A'})</small></span><br>
+                            <span style="color:#fff">Necesidad: ${d.mm || 0} mm</span><br>
+                            <span style="color:var(--warn)">Tiempo: ${d.min || 0} min</span><br>
+                            <small style="color:var(--text-muted)">Estado: ${d.reason || 'Sincronizando'}</small><br>
                             <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:5px 0;">
                             <strong style="color:var(--success)">📊 Último Riego:</strong><br>
                             <small style="color:#fff">${d.result || 'Sin datos'}</small>
@@ -142,20 +128,11 @@
                             Modo: ${manual ? 'MANUAL FORZADO' : 'AUTOMÁTICO'}
                         </p>
                         <button class="toggle-btn ${isOn && manual ? 'btn-danger' : ''}" onclick="togglePump(${index}, ${!(isOn && manual)})">
-                            ${isOn && manual ? 'Quitar Manual (Auto)' : 'Forzar Encendido'}
+                            Control Web (Pronto)
                         </button>
                     </div>
                 `;
             });
-        }
-        
-        async function fetchTime() {
-            try {
-                const res = await fetch(`${baseUrl}/api/time`);
-                const data = await res.json();
-                document.getElementById('ntpTime').innerText = data.ntp;
-                document.getElementById('rtcTime').innerText = data.rtc;
-            } catch(e) {}
         }
     </script>
 </body>
