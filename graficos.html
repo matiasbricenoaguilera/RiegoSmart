@@ -110,9 +110,9 @@
                     // Encontrar el indice donde empujamos la label actual
                     let idx = labels.indexOf(timeLabel);
 
-                    if (row.estacion === 1) {
+                    if (row.estacion == 1) {
                         dataE1[idx] = row.humedad;
-                    } else if (row.estacion === 2) {
+                    } else if (row.estacion == 2) {
                         dataE2[idx] = row.humedad;
                     }
                 }
