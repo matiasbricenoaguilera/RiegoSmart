@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | Riego Smart</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #0f172a; color: #f8fafc; display: grid; place-items: center; min-height: 100vh; }
+    .card { width: min(380px, 92vw); background: rgba(30,41,59,.9); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 20px; }
+    h1 { margin-top: 0; font-size: 1.4rem; }
+    input, button { width: 100%; padding: 10px; margin: 6px 0; border-radius: 8px; border: 1px solid rgba(255,255,255,.2); }
+    input { background: rgba(0,0,0,.2); color: #fff; }
+    button { border-color: #3b82f6; background: #3b82f6; color: #fff; cursor: pointer; }
+    .error { color: #ef4444; min-height: 20px; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔐 Riego Smart</h1>
+    <p>Ingresa para acceder a Estado, Programación y Gráficos.</p>
+    <form id="loginForm">
+      <input id="u" placeholder="Usuario" required>
+      <input id="p" type="password" placeholder="Clave" required>
+      <button type="submit">Entrar</button>
+    </form>
+    <div class="error" id="err"></div>
+  </div>
+  <script>
+    const USER = "matias";
+    const PASS = "406263";
+    document.getElementById("loginForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const u = document.getElementById("u").value.trim();
+      const p = document.getElementById("p").value;
+      if (u === USER && p === PASS) {
+        localStorage.setItem("rs_auth", "1");
+        window.location.href = "index.html";
+      } else {
+        document.getElementById("err").textContent = "Credenciales inválidas";
+      }
+    });
+  </script>
+</body>
+</html>
