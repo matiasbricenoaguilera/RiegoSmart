@@ -54,6 +54,9 @@
             <div class="chart-container">
                 <canvas id="humidityChart"></canvas>
             </div>
+            <p id="liveIndicator" style="color:var(--success); font-weight:600; margin-top:10px;">
+                Estado en vivo: consultando último dato...
+            </p>
             <p id="loadingMsg" style="color:var(--accent); font-weight:bold; margin-top:10px;">Cargando datos desde Supabase...</p>
         </div>
     </div>
@@ -69,7 +72,37 @@
             fetchGraphData();
             // Refrescar gráfica cada 2 minutos
             setInterval(fetchGraphData, 120000); 
+            // Indicador en vivo más frecuente
+            setInterval(fetchLiveIndicator, 15000);
         };
+
+        async function fetchLiveIndicator() {
+            const indicator = document.getElementById('liveIndicator');
+            try {
+                const { data, error } = await supabaseClient
+                    .from('sensor_data')
+                    .select('estacion, humedad, created_at')
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .single();
+
+                if (error || !data) {
+                    indicator.innerText = 'Estado en vivo: sin datos recientes.';
+                    indicator.style.color = '#f59e0b';
+                    return;
+                }
+
+                const ts = new Date(data.created_at);
+                const ageSec = Math.max(0, Math.floor((Date.now() - ts.getTime()) / 1000));
+                const ageText = ageSec < 60 ? `${ageSec}s` : `${Math.floor(ageSec / 60)}m`;
+
+                indicator.innerText = `Estado en vivo: último dato hace ${ageText} | Estación ${data.estacion} = ${data.humedad}%`;
+                indicator.style.color = ageSec > 2100 ? '#f59e0b' : '#10b981';
+            } catch (e) {
+                indicator.innerText = 'Estado en vivo: error consultando datos.';
+                indicator.style.color = '#ef4444';
+            }
+        }
 
         async function fetchGraphData() {
             document.getElementById('loadingMsg').style.display = 'block';
@@ -126,6 +159,7 @@
                 }
 
                 renderChart(labels, dataE1, dataE2);
+                fetchLiveIndicator();
                 document.getElementById('loadingMsg').style.display = 'none';
 
             } catch (e) {

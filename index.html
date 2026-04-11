@@ -71,6 +71,8 @@
         };
 
         let pendingCommands = {}; // {pumpId: {time, expectedActive}}
+        let lastPumps = [];
+        let lastDecisions = [];
 
         async function fetchState() {
             try {
@@ -81,6 +83,8 @@
                     .single();
 
                 if (error) throw error;
+                lastPumps = data.pumps || [];
+                lastDecisions = data.decisions || [];
 
                 // Limpiar pending si Supabase ya refleja el estado activo esperado
                 if (data.pumps) {
@@ -95,7 +99,7 @@
                     });
                 }
 
-                renderPumps(data.pumps, data.decisions);
+                renderPumps(lastPumps, lastDecisions);
                 document.getElementById('activeProgName').innerText = "Programa " + ((data.active_program || 0) + 1);
                 
                 let now = new Date();
@@ -108,6 +112,8 @@
             btnElement.style.opacity = '0.6';
             btnElement.disabled = true;
             pendingCommands[id] = { time: Date.now(), expectedActive: turnOn };
+            // Reflejar el estado pendiente de inmediato, sin esperar próximo polling.
+            renderPumps(lastPumps, lastDecisions);
             
             try {
                 const { error } = await supabaseClient
@@ -134,9 +140,17 @@
                 
                 let btnHtml;
                 if (isPending) {
-                    btnHtml = `<button class="toggle-btn" disabled style="opacity:0.6; cursor:wait; background:#f59e0b">
-                        ⏳ Esperando confirmación del ESP32...
-                    </button>`;
+                    const ageMs = Date.now() - pendingCommands[index].time;
+                    const timedOut = ageMs > 15000;
+                    if (timedOut) {
+                        btnHtml = `<button class="toggle-btn btn-danger" onclick="retryPending(${index}, this)">
+                            ⚠ Sin confirmación (reintentar)
+                        </button>`;
+                    } else {
+                        btnHtml = `<button class="toggle-btn" disabled style="opacity:0.6; cursor:wait; background:#f59e0b">
+                            ⏳ Esperando confirmación del ESP32...
+                        </button>`;
+                    }
                 } else if (isOn) {
                     btnHtml = `<button class="toggle-btn btn-danger" onclick="togglePump(${index}, false, this)">
                         🔴 APAGAR
@@ -171,6 +185,14 @@
                     </div>
                 `;
             });
+        }
+
+        function retryPending(id, btnElement) {
+            const pending = pendingCommands[id];
+            if (!pending) return;
+            delete pendingCommands[id];
+            const desiredOn = !!pending.expectedActive;
+            togglePump(id, desiredOn, btnElement);
         }
     </script>
 </body>

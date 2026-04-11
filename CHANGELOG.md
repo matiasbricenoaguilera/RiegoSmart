@@ -9,3 +9,7 @@
   - el botón ahora cambia a `APAGAR` cuando la bomba está activa.
   - la confirmación de comandos pendientes se valida con `p.active` (estado real de bomba) en vez de `p.manual`.
   - mejora de etiquetas de acción para evitar confusión en operación remota.
+- Se agrega indicador en vivo en `graficos.html`:
+  - muestra tiempo desde el último dato recibido en `sensor_data`
+  - informa estación y humedad del último registro
+  - cambia color cuando el dato está tardando más de lo esperado
