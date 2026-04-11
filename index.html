@@ -70,7 +70,7 @@
             setInterval(fetchState, 4000); 
         };
 
-        let pendingCommands = {}; // {pumpId: {time, expectedManual}}
+        let pendingCommands = {}; // {pumpId: {time, expectedActive}}
 
         async function fetchState() {
             try {
@@ -82,11 +82,11 @@
 
                 if (error) throw error;
 
-                // Limpiar pending si Supabase ya refleja el cambio esperado
+                // Limpiar pending si Supabase ya refleja el estado activo esperado
                 if (data.pumps) {
                     data.pumps.forEach((p, i) => {
                         if (pendingCommands[i]) {
-                            if (p.manual === pendingCommands[i].expectedManual) {
+                            if (p.active === pendingCommands[i].expectedActive) {
                                 delete pendingCommands[i]; // ESP32 confirmó el cambio
                             } else if (Date.now() - pendingCommands[i].time > 30000) {
                                 delete pendingCommands[i]; // Timeout de seguridad 30s
@@ -107,7 +107,7 @@
             btnElement.innerText = '⏳ Enviando...';
             btnElement.style.opacity = '0.6';
             btnElement.disabled = true;
-            pendingCommands[id] = { time: Date.now(), expectedManual: turnOn };
+            pendingCommands[id] = { time: Date.now(), expectedActive: turnOn };
             
             try {
                 const { error } = await supabaseClient
@@ -137,13 +137,13 @@
                     btnHtml = `<button class="toggle-btn" disabled style="opacity:0.6; cursor:wait; background:#f59e0b">
                         ⏳ Esperando confirmación del ESP32...
                     </button>`;
-                } else if (manual) {
+                } else if (isOn) {
                     btnHtml = `<button class="toggle-btn btn-danger" onclick="togglePump(${index}, false, this)">
-                        🔴 APAGAR (Quitar Manual)
+                        🔴 APAGAR
                     </button>`;
                 } else {
                     btnHtml = `<button class="toggle-btn" onclick="togglePump(${index}, true, this)">
-                        🟢 FORZAR ENCENDIDO
+                        🟢 ENCENDER
                     </button>`;
                 }
 
