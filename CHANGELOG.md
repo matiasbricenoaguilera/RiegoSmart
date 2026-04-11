@@ -13,3 +13,7 @@
   - muestra tiempo desde el último dato recibido en `sensor_data`
   - informa estación y humedad del último registro
   - cambia color cuando el dato está tardando más de lo esperado
+- Migración de `schedule.html` a modo nube (sin llamadas HTTP locales):
+  - deja de usar `http://192.168.1.85/api/*` para evitar error Mixed Content en Netlify
+  - lectura/escritura de programación ahora se realiza en `system_state` vía Supabase
+  - activación de programa y vista de sensores operan desde datos cloud
