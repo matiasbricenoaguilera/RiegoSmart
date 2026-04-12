@@ -323,6 +323,22 @@
                             <div style="margin-top:2px;">${schedLine || '<span style="color:var(--text-muted)">Sin datos</span>'}</div>
                         </div>
 
+                        <!-- Auditoría último riego -->
+                        ${d.audit ? `
+                        <div style="background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.2); border-radius:8px; padding:10px; margin-bottom:10px; text-align:left; font-size:0.82rem;">
+                            <div style="color:var(--success); font-weight:700; margin-bottom:6px;">📋 Auditoría último riego</div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; color:var(--text-muted);">
+                                <div>💧 Agua entregada</div>
+                                <div style="color:#fff; font-weight:600;">${d.audit.liters.toFixed(1)} L</div>
+                                <div>🌱 Humedad inicio</div>
+                                <div style="color:#fff; font-weight:600;">${d.audit.hum_start}%</div>
+                                <div>📈 Variación</div>
+                                <div style="color:${d.audit.delta_hum >= 0 ? 'var(--success)' : 'var(--danger)'}; font-weight:600;">${d.audit.delta_hum >= 0 ? '+' : ''}${d.audit.delta_hum}%</div>
+                                <div>⏱ Duración real</div>
+                                <div style="color:#fff; font-weight:600;">${d.audit.mins} min</div>
+                            </div>
+                        </div>` : ''}
+
                         <p style="color:var(--text-muted); margin-bottom:0.75rem; font-size:0.82rem;">
                             Modo: ${manual ? '🔴 MANUAL FORZADO' : '🟢 AUTOMÁTICO'}
                         </p>
