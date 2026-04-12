@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glosario Técnico | Riego Smart</title>
+    <script src="auth.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap');
+        :root {
+            --bg-color: #0f172a; --card-bg: rgba(30, 41, 59, 0.7); --text-main: #f8fafc; --text-muted: #94a3b8;
+            --accent: #3b82f6; --accent-hover: #2563eb; --success: #10b981; --danger: #ef4444; --warn: #f59e0b;
+            --purple: #a78bfa; --cyan: #22d3ee;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background: var(--bg-color); color: var(--text-main); min-height: 100vh; }
+        header { padding: 2rem; text-align: center; background: linear-gradient(to right, #1e293b, var(--bg-color)); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        h1 { font-weight: 800; font-size: 2.5rem; background: -webkit-linear-gradient(#60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        nav { display: flex; justify-content: center; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+        a.btn-nav { text-decoration: none; padding: 0.5rem 1.5rem; background: var(--card-bg); color: var(--text-main); border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s ease; }
+        a.btn-nav:hover, a.btn-nav.active { background: var(--accent); border-color: var(--accent); }
+        .cloud-badge { background: var(--accent); padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; vertical-align: top; margin-left: 10px; }
+
+        .container { max-width: 900px; margin: 3rem auto; padding: 0 1.5rem; }
+
+        /* Secciones */
+        .section-title {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 1.15rem; font-weight: 700; margin: 2.5rem 0 1rem;
+            padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .section-dot {
+            width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+        }
+
+        /* Tarjeta de término */
+        .term-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1rem;
+            backdrop-filter: blur(10px);
+            transition: border-color 0.2s;
+        }
+        .term-card:hover { border-color: rgba(59,130,246,0.4); }
+        .term-header {
+            display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+            margin-bottom: 0.5rem;
+        }
+        .term-name {
+            font-size: 1rem; font-weight: 700; color: var(--text-main);
+        }
+        .term-symbol {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem; color: var(--purple);
+            background: rgba(167,139,250,0.12); padding: 2px 8px;
+            border-radius: 5px;
+        }
+        .term-badge {
+            font-size: 0.7rem; font-weight: 600; padding: 2px 8px;
+            border-radius: 999px; text-transform: uppercase;
+        }
+        .badge-clima   { background: rgba(34,211,238,0.15); color: var(--cyan);    border: 1px solid rgba(34,211,238,0.3); }
+        .badge-suelo   { background: rgba(16,185,129,0.15); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
+        .badge-cultivo { background: rgba(167,139,250,0.15); color: var(--purple); border: 1px solid rgba(167,139,250,0.3); }
+        .badge-sistema { background: rgba(59,130,246,0.15); color: var(--accent);  border: 1px solid rgba(59,130,246,0.3); }
+        .badge-decision{ background: rgba(245,158,11,0.15); color: var(--warn);    border: 1px solid rgba(245,158,11,0.3); }
+        .term-unit {
+            font-size: 0.75rem; color: var(--text-muted); margin-left: auto;
+        }
+        .term-desc {
+            font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 0.75rem;
+        }
+        .term-desc strong { color: var(--text-main); }
+
+        /* Bloque de fórmula */
+        .formula-block {
+            background: rgba(0,0,0,0.3);
+            border-left: 3px solid var(--purple);
+            border-radius: 0 8px 8px 0;
+            padding: 10px 14px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.83rem;
+            color: #e2e8f0;
+            line-height: 1.8;
+        }
+        .formula-block .label {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.75rem; color: var(--text-muted);
+            margin-bottom: 4px; display: block;
+        }
+        .formula-block .comment {
+            color: #64748b;
+        }
+        .formula-block .hl { color: var(--purple); font-weight: 600; }
+        .formula-block .hl-g { color: var(--success); font-weight: 600; }
+        .formula-block .hl-y { color: var(--warn); font-weight: 600; }
+        .formula-block .hl-r { color: var(--danger); font-weight: 600; }
+
+        /* Tabla de resumen */
+        .summary-table {
+            width: 100%; border-collapse: collapse; font-size: 0.83rem;
+            margin-top: 2.5rem; margin-bottom: 3rem;
+        }
+        .summary-table th {
+            background: rgba(59,130,246,0.15); color: var(--accent);
+            padding: 10px 14px; text-align: left; font-weight: 600;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .summary-table td {
+            padding: 9px 14px; border-bottom: 1px solid rgba(255,255,255,0.05);
+            color: var(--text-muted); vertical-align: top;
+        }
+        .summary-table td:first-child { color: var(--text-main); font-weight: 600; }
+        .summary-table tr:hover td { background: rgba(255,255,255,0.03); }
+
+        /* Flujo de decisión */
+        .flow-box {
+            background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px; padding: 1.25rem; margin-top: 1.5rem;
+            font-size: 0.85rem; line-height: 2;
+        }
+        .flow-step {
+            display: flex; align-items: flex-start; gap: 10px; margin-bottom: 6px;
+        }
+        .flow-num {
+            background: var(--accent); color: white; border-radius: 50%;
+            width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+        }
+        .flow-ok  { color: var(--success); }
+        .flow-no  { color: var(--danger); }
+        .flow-cond { color: var(--warn); }
+
+        footer {
+            text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.8rem;
+            border-top: 1px solid rgba(255,255,255,0.05); margin-top: 3rem;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>💧 Riego Smart <span class="cloud-badge">Supabase</span></h1>
+    <nav>
+        <a href="index.html" class="btn-nav">🕹️ Estado y Control</a>
+        <a href="schedule.html" class="btn-nav">⏱️ Programación</a>
+        <a href="graficos.html" class="btn-nav">📈 Gráficos</a>
+        <a href="glosario.html" class="btn-nav active">📖 Glosario</a>
+    </nav>
+</header>
+
+<div class="container">
+
+    <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.5rem;">
+        Referencia técnica de todos los parámetros, variables y fórmulas utilizadas por el sistema de riego inteligente.
+    </p>
+
+    <!-- ===================== SECCIÓN: CLIMA ===================== -->
+    <div class="section-title">
+        <div class="section-dot" style="background:var(--cyan);"></div>
+        Datos Climáticos
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">ET₀ — Evapotranspiración de referencia</span>
+            <span class="term-symbol">wx_et0</span>
+            <span class="term-badge badge-clima">Clima</span>
+            <span class="term-unit">mm / día</span>
+        </div>
+        <div class="term-desc">
+            Cantidad de agua que evaporaría una superficie de pasto de referencia bajo las condiciones climáticas del día.
+            Representa la <strong>demanda hídrica atmosférica</strong>: a mayor ET₀, mayor calor/viento y más agua consume el cultivo.
+            El sistema la obtiene directamente de <strong>Open-Meteo</strong> usando el método estándar <strong>Penman-Monteith FAO 56</strong>,
+            para las coordenadas de Villa Alemana (33.04°S / 71.37°O).
+        </div>
+        <div class="formula-block">
+            <span class="label">Fuente (API Open-Meteo):</span>
+            GET api.open-meteo.com/v1/forecast<br>
+            &nbsp;&nbsp;?<span class="hl">daily=et0_fao_evapotranspiration</span><br>
+            &nbsp;&nbsp;&amp;latitude=-33.04&amp;longitude=-71.37<br>
+            &nbsp;&nbsp;&amp;forecast_days=2<br>
+            <br>
+            <span class="comment">// ET₀ del día actual → wx_et0 [mm/d]</span>
+        </div>
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Lluvia próximas 24h</span>
+            <span class="term-symbol">wx_rain24h</span>
+            <span class="term-badge badge-clima">Clima</span>
+            <span class="term-unit">mm</span>
+        </div>
+        <div class="term-desc">
+            Precipitación acumulada prevista para las próximas 24 horas. Se calcula como el
+            <strong>máximo entre la lluvia de hoy y la de mañana</strong> según el pronóstico de Open-Meteo,
+            tomando el peor caso para decidir si conviene regar.
+        </div>
+        <div class="formula-block">
+            <span class="label">Derivación en firmware:</span>
+            wx_rain24h = <span class="hl-y">max</span>(rain_today, rain_tomorrow)<br>
+            <span class="comment">// rain_today y rain_tomorrow vienen del campo</span><br>
+            <span class="comment">// daily=precipitation_sum de Open-Meteo</span>
+        </div>
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Temperatura máx./mín.</span>
+            <span class="term-symbol">wx_tMax / wx_tMin</span>
+            <span class="term-badge badge-clima">Clima</span>
+            <span class="term-unit">°C</span>
+        </div>
+        <div class="term-desc">
+            Temperatura máxima y mínima prevista para hoy. Se obtienen de Open-Meteo
+            (<code>temperature_2m_max</code> / <code>temperature_2m_min</code>).
+            Se muestran en el panel de clima del dashboard como referencia visual.
+        </div>
+    </div>
+
+    <!-- ===================== SECCIÓN: SUELO ===================== -->
+    <div class="section-title">
+        <div class="section-dot" style="background:var(--success);"></div>
+        Parámetros de Suelo
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Humedad del suelo</span>
+            <span class="term-symbol">moisturePct</span>
+            <span class="term-badge badge-suelo">Suelo</span>
+            <span class="term-unit">%</span>
+        </div>
+        <div class="term-desc">
+            Porcentaje de humedad medido por el sensor capacitivo del satélite ESP32 (GPIO 34).
+            El satélite envía lecturas vía <strong>ESP-NOW</strong> cada 30 minutos. El valor se normaliza
+            entre 0% (seco) y 100% (saturado) basándose en valores de referencia del sensor.
+        </div>
+        <div class="formula-block">
+            <span class="label">Normalización en firmware satélite:</span>
+            raw = analogRead(GPIO34)  <span class="comment">// 0–4095 (12-bit ADC)</span><br>
+            pct = map(raw, <span class="hl-r">WET_VAL</span>, <span class="hl-y">DRY_VAL</span>, 100, 0)<br>
+            pct = constrain(pct, 0, 100)
+        </div>
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Umbral de humedad</span>
+            <span class="term-symbol">threshold</span>
+            <span class="term-badge badge-suelo">Suelo</span>
+            <span class="term-unit">%</span>
+        </div>
+        <div class="term-desc">
+            Porcentaje de humedad por debajo del cual el sistema considera que el suelo está
+            <strong>suficientemente seco como para regar</strong>. Si <code>moisturePct &lt; threshold</code>, la lógica predictiva
+            evalúa activar el riego. Configurable por zona en la pantalla de Programación.
+            La barra amarilla en el dashboard indica este umbral.
+        </div>
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Capacidad hídrica del suelo</span>
+            <span class="term-symbol">soilMaxMm</span>
+            <span class="term-badge badge-suelo">Suelo</span>
+            <span class="term-unit">mm</span>
+        </div>
+        <div class="term-desc">
+            Cantidad máxima de agua que puede retener el suelo en la zona de raíces.
+            Depende del tipo de suelo y profundidad. Valores típicos: arena 60–80 mm, franco 120–150 mm, arcilla 180–220 mm.
+            Se usa para calcular cuánta agua falta para llevar el suelo de la humedad actual hasta el umbral.
+        </div>
+        <div class="formula-block">
+            <span class="label">Rol en la fórmula de déficit:</span>
+            deficit_mm = <span class="hl">soilMaxMm</span> × (threshold − moisturePct) / 100<br>
+            <span class="comment">// ejemplo: 120mm × (80% − 45%) / 100 = 42 mm de déficit</span>
+        </div>
+    </div>
+
+    <!-- ===================== SECCIÓN: CULTIVO ===================== -->
+    <div class="section-title">
+        <div class="section-dot" style="background:var(--purple);"></div>
+        Parámetros de Cultivo
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Kc — Coeficiente de cultivo</span>
+            <span class="term-symbol">Kc</span>
+            <span class="term-badge badge-cultivo">Cultivo</span>
+            <span class="term-unit">adimensional</span>
+        </div>
+        <div class="term-desc">
+            Factor que ajusta ET₀ al cultivo específico de cada zona.
+            Un Kc de 1.0 significa que el cultivo tiene la misma demanda que la referencia;
+            mayor a 1.0 (ej. tomates en floración: 1.15) consume más; menor (ej. árboles frutales en reposo: 0.5) consume menos.
+        </div>
+        <div class="formula-block">
+            <span class="label">Valores de referencia FAO 56:</span>
+            Pasto corto / Pradera  →  Kc ≈ <span class="hl-g">0.85</span><br>
+            Hortalizas (media)     →  Kc ≈ <span class="hl-g">1.00</span><br>
+            Tomate (floración)     →  Kc ≈ <span class="hl-y">1.15</span><br>
+            Árbol frutal (reposo)  →  Kc ≈ <span class="hl-y">0.50</span><br>
+            <br>
+            <span class="comment">// Uso en firmware: mm_needed += ET₀ × Kc × 0.5</span>
+        </div>
+    </div>
+
+    <!-- ===================== SECCIÓN: SISTEMA ===================== -->
+    <div class="section-title">
+        <div class="section-dot" style="background:var(--accent);"></div>
+        Parámetros del Sistema de Riego
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Caudal de la bomba</span>
+            <span class="term-symbol">flowRate</span>
+            <span class="term-badge badge-sistema">Sistema</span>
+            <span class="term-unit">L / h</span>
+        </div>
+        <div class="term-desc">
+            Volumen de agua que entrega la bomba por hora. Depende del tipo de riego instalado:
+            goteo, microaspersión o aspersión. Se configura en la sección de Programación.
+        </div>
+        <div class="formula-block">
+            <span class="label">Ejemplos típicos:</span>
+            Goteo (4 goteros/m²)     →  ~<span class="hl-g">8–16</span> L/h por zona<br>
+            Microaspersión           →  ~<span class="hl-y">40–120</span> L/h por zona<br>
+            Aspersión de jardín      →  ~<span class="hl-r">200–600</span> L/h por zona
+        </div>
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Área de la zona</span>
+            <span class="term-symbol">area</span>
+            <span class="term-badge badge-sistema">Sistema</span>
+            <span class="term-unit">m²</span>
+        </div>
+        <div class="term-desc">
+            Superficie irrigada por la zona en metros cuadrados. Se usa junto con <code>flowRate</code>
+            para calcular la <strong>tasa de precipitación</strong> del sistema.
+        </div>
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Tasa de precipitación del sistema</span>
+            <span class="term-symbol">precipR</span>
+            <span class="term-badge badge-sistema">Sistema</span>
+            <span class="term-unit">mm / h</span>
+        </div>
+        <div class="term-desc">
+            Cuántos milímetros de agua aplica el sistema de riego sobre la zona en una hora.
+            Equivale a la lluvia artificial que genera la bomba. A mayor precipR, menos tiempo
+            de riego se necesita para cubrir el mismo déficit.
+        </div>
+        <div class="formula-block">
+            <span class="label">Cálculo:</span>
+            precipR [mm/h] = <span class="hl">flowRate</span> [L/h] ÷ <span class="hl-g">area</span> [m²]<br>
+            <br>
+            <span class="comment">// Ejemplo: 120 L/h ÷ 15 m² = 8 mm/h</span><br>
+            <span class="comment">// (1 L sobre 1 m² equivale a 1 mm de lámina)</span>
+        </div>
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Eficiencia del sistema</span>
+            <span class="term-symbol">efficiency</span>
+            <span class="term-badge badge-sistema">Sistema</span>
+            <span class="term-unit">0.0 – 1.0</span>
+        </div>
+        <div class="term-desc">
+            Fracción del agua aplicada que realmente llega a la zona de raíces.
+            El resto se pierde por evaporación, escorrentía o distribución irregular.
+            Un valor de 0.90 significa que el 90% del agua entregada es aprovechada.
+        </div>
+        <div class="formula-block">
+            <span class="label">Valores típicos:</span>
+            Goteo subsuperficial        →  <span class="hl-g">0.90 – 0.95</span><br>
+            Goteo superficial           →  <span class="hl-g">0.85 – 0.92</span><br>
+            Microaspersión cubierta     →  <span class="hl-y">0.75 – 0.85</span><br>
+            Aspersión al aire libre     →  <span class="hl-r">0.65 – 0.75</span><br>
+            <br>
+            <span class="comment">// Rol en la fórmula: se divide para compensar pérdidas</span><br>
+            <span class="comment">// mins = (mm_needed / precipR) / efficiency × 60</span>
+        </div>
+    </div>
+
+    <!-- ===================== SECCIÓN: DECISIÓN ===================== -->
+    <div class="section-title">
+        <div class="section-dot" style="background:var(--warn);"></div>
+        Lógica de Decisión de Riego
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Déficit hídrico necesario</span>
+            <span class="term-symbol">mm_needed</span>
+            <span class="term-badge badge-decision">Decisión</span>
+            <span class="term-unit">mm</span>
+        </div>
+        <div class="term-desc">
+            Lámina de agua que debe aplicarse para reponer el suelo al nivel del umbral,
+            ajustada por la demanda evapotranspirativa del cultivo y descontando la lluvia prevista.
+            Si mm_needed ≤ 0 tras los ajustes, el sistema no riega.
+        </div>
+        <div class="formula-block">
+            <span class="label">Fórmula completa (Nivel 2 — Balance Hídrico):</span>
+            <span class="comment">// 1. Déficit base del suelo</span><br>
+            mm_needed = <span class="hl">soilMaxMm</span> × (threshold − hum) / 100<br>
+            <br>
+            <span class="comment">// 2. Ajuste por demanda del cultivo (ET₀ × Kc × 0.5)</span><br>
+            mm_needed += <span class="hl">wx_et0</span> × <span class="hl-g">Kc</span> × 0.5<br>
+            <br>
+            <span class="comment">// 3. Cancelar si lluvia prevista ≥ umbral de cancelación</span><br>
+            <span class="hl-r">if</span> (wx_rain24h ≥ <span class="hl-r">RAIN_CANCEL_MM</span>) → NO REGAR<br>
+            <br>
+            <span class="comment">// 4. Descontar lluvia parcial (80% de eficiencia de lluvia)</span><br>
+            <span class="hl-y">else if</span> (wx_rain24h &gt; 0) → mm_needed −= wx_rain24h × 0.8<br>
+            <br>
+            <span class="comment">// 5. Si tras ajustes mm_needed ≤ 0 → NO REGAR</span>
+        </div>
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Duración de riego calculada</span>
+            <span class="term-symbol">mins</span>
+            <span class="term-badge badge-decision">Decisión</span>
+            <span class="term-unit">minutos</span>
+        </div>
+        <div class="term-desc">
+            Tiempo de riego resultante que aplicará el sistema para cubrir el déficit hídrico calculado,
+            considerando la tasa de precipitación del equipo y su eficiencia.
+        </div>
+        <div class="formula-block">
+            <span class="label">Fórmula:</span>
+            horas   = <span class="hl">mm_needed</span> ÷ (<span class="hl-g">precipR</span> × <span class="hl-y">efficiency</span>)<br>
+            mins    = horas × 60<br>
+            <br>
+            <span class="comment">// Ejemplo:</span><br>
+            <span class="comment">// mm_needed = 18 mm,  precipR = 8 mm/h,  eff = 0.85</span><br>
+            <span class="comment">// horas = 18 / (8 × 0.85) = 18 / 6.8 = 2.65 h</span><br>
+            <span class="comment">// mins  = 2.65 × 60 = 159 min</span><br>
+            <br>
+            <span class="comment">// El resultado se acota entre MIN_MINS (1) y maxMins</span>
+        </div>
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Umbral de cancelación por lluvia</span>
+            <span class="term-symbol">RAIN_CANCEL_MM</span>
+            <span class="term-badge badge-decision">Decisión</span>
+            <span class="term-unit">mm</span>
+        </div>
+        <div class="term-desc">
+            Si la lluvia prevista (<code>wx_rain24h</code>) supera este valor, el sistema
+            <strong>cancela el riego programado</strong> para esa zona, considerando que la lluvia
+            aportará suficiente agua. Valor configurado en firmware: <strong>5.0 mm</strong>.
+        </div>
+        <div class="formula-block">
+            <span class="label">Lógica en firmware:</span>
+            <span class="hl-r">if</span> (wx_rain24h &gt;= <span class="hl-r">5.0</span>) {<br>
+            &nbsp;&nbsp;result = <span class="hl-r">"Lluvia prevista, sin riego"</span><br>
+            &nbsp;&nbsp;<span class="hl-r">return false</span>  <span class="comment">// no activa bomba</span><br>
+            }
+        </div>
+    </div>
+
+    <div class="term-card">
+        <div class="term-header">
+            <span class="term-name">Ventana de ejecución</span>
+            <span class="term-symbol">MAX_DECISION_MIN</span>
+            <span class="term-badge badge-decision">Decisión</span>
+            <span class="term-unit">minutos</span>
+        </div>
+        <div class="term-desc">
+            Si la hora programada ya pasó, el sistema tiene hasta <strong>MAX_DECISION_MIN minutos</strong>
+            para ejecutar el riego de todas formas (ej. si el ESP32 estuvo sin WiFi o reiniciándose).
+            Pasado ese tiempo, el intento se cancela. Valor configurado: <strong>30 minutos</strong>.
+        </div>
+        <div class="formula-block">
+            <span class="label">Lógica en predictiveCheck():</span>
+            minsFrom = (now - sched_time) en minutos<br>
+            <span class="hl-y">if</span> (minsFrom &gt;= 0 <span class="hl-y">&amp;&amp;</span> minsFrom &lt;= <span class="hl">30</span>) {<br>
+            &nbsp;&nbsp;→ evaluar y regar si corresponde<br>
+            }
+        </div>
+    </div>
+
+    <!-- ===================== FLUJO COMPLETO ===================== -->
+    <div class="section-title">
+        <div class="section-dot" style="background:#e879f9;"></div>
+        Flujo Completo de Decisión (cada zona)
+    </div>
+
+    <div class="flow-box">
+        <div class="flow-step">
+            <div class="flow-num">1</div>
+            <div>
+                <span style="color:var(--text-main); font-weight:600;">¿Hay hora programada?</span>
+                <span class="flow-no"> → No: saltar zona</span>
+                <span class="flow-ok"> → Sí: continuar</span>
+            </div>
+        </div>
+        <div class="flow-step">
+            <div class="flow-num">2</div>
+            <div>
+                <span style="color:var(--text-main); font-weight:600;">¿Estamos en la ventana de ejecución (0–30 min después)?</span>
+                <span class="flow-no"> → No: saltar</span>
+                <span class="flow-ok"> → Sí: continuar</span>
+            </div>
+        </div>
+        <div class="flow-step">
+            <div class="flow-num">3</div>
+            <div>
+                <span style="color:var(--text-main); font-weight:600;">¿Ya se regó hoy en este slot?</span>
+                <span class="flow-no"> → Sí: saltar (no duplicar)</span>
+                <span class="flow-ok"> → No: continuar</span>
+            </div>
+        </div>
+        <div class="flow-step">
+            <div class="flow-num">4</div>
+            <div>
+                <span style="color:var(--text-main); font-weight:600;">¿Hay bomba activa actualmente?</span>
+                <span class="flow-no"> → Sí: esperar (solo 1 bomba a la vez)</span>
+                <span class="flow-ok"> → No: continuar</span>
+            </div>
+        </div>
+        <div class="flow-step">
+            <div class="flow-num">5</div>
+            <div>
+                <span style="color:var(--text-main); font-weight:600;">¿Lluvia prevista ≥ 5 mm?</span>
+                <span class="flow-no"> → Sí: cancelar riego</span>
+                <span class="flow-ok"> → No: continuar</span>
+            </div>
+        </div>
+        <div class="flow-step">
+            <div class="flow-num">6</div>
+            <div>
+                <span style="color:var(--text-main); font-weight:600;">¿Humedad actual &lt; Umbral?</span>
+                <span class="flow-no"> → No: suelo suficientemente húmedo, no regar</span>
+                <span class="flow-ok"> → Sí: calcular mm_needed y duración</span>
+            </div>
+        </div>
+        <div class="flow-step">
+            <div class="flow-num">7</div>
+            <div>
+                <span style="color:var(--text-main); font-weight:600;">¿mm_needed &gt; 0 tras descontar lluvia?</span>
+                <span class="flow-no"> → No: no regar</span>
+                <span class="flow-ok"> → Sí: <strong>ACTIVAR BOMBA por 'mins' calculados</strong></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== TABLA RESUMEN ===================== -->
+    <div class="section-title" style="margin-top:3rem;">
+        <div class="section-dot" style="background:var(--text-muted);"></div>
+        Tabla Resumen de Parámetros
+    </div>
+
+    <table class="summary-table">
+        <thead>
+            <tr>
+                <th>Símbolo</th>
+                <th>Nombre</th>
+                <th>Unidad</th>
+                <th>Rango típico</th>
+                <th>Configurable</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>wx_et0</td><td>Evapotranspiración ref. (Penman-Monteith)</td><td>mm/día</td><td>1–8</td><td>No (Open-Meteo)</td></tr>
+            <tr><td>wx_rain24h</td><td>Lluvia prevista 24h</td><td>mm</td><td>0–50+</td><td>No (Open-Meteo)</td></tr>
+            <tr><td>moisturePct</td><td>Humedad del suelo</td><td>%</td><td>0–100</td><td>No (sensor)</td></tr>
+            <tr><td>threshold</td><td>Umbral de humedad</td><td>%</td><td>30–80</td><td>Sí</td></tr>
+            <tr><td>soilMaxMm</td><td>Capacidad hídrica del suelo</td><td>mm</td><td>60–220</td><td>Sí</td></tr>
+            <tr><td>Kc</td><td>Coeficiente de cultivo (FAO 56)</td><td>—</td><td>0.4–1.3</td><td>Sí</td></tr>
+            <tr><td>flowRate</td><td>Caudal de la bomba</td><td>L/h</td><td>8–600</td><td>Sí</td></tr>
+            <tr><td>area</td><td>Área irrigada</td><td>m²</td><td>1–500</td><td>Sí</td></tr>
+            <tr><td>efficiency</td><td>Eficiencia del sistema</td><td>0–1</td><td>0.65–0.95</td><td>Sí</td></tr>
+            <tr><td>precipR</td><td>Tasa de precipitación del sistema</td><td>mm/h</td><td>2–40</td><td>No (derivado)</td></tr>
+            <tr><td>mm_needed</td><td>Déficit hídrico a cubrir</td><td>mm</td><td>0–200</td><td>No (calculado)</td></tr>
+            <tr><td>mins</td><td>Duración de riego calculada</td><td>min</td><td>1–maxMins</td><td>No (calculado)</td></tr>
+            <tr><td>RAIN_CANCEL_MM</td><td>Lluvia mínima para cancelar riego</td><td>mm</td><td>5 (fijo)</td><td>No (firmware)</td></tr>
+            <tr><td>MAX_DECISION_MIN</td><td>Ventana de ejecución post-horario</td><td>min</td><td>30 (fijo)</td><td>No (firmware)</td></tr>
+        </tbody>
+    </table>
+
+</div>
+<footer>
+    Riego Smart 2.0 · Firmware ESP32 con Open-Meteo (Penman-Monteith FAO 56) · Villa Alemana, Chile
+</footer>
+</body>
+</html>
