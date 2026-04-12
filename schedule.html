@@ -312,6 +312,7 @@
             container.innerHTML += `<div style="text-align: right; margin-top: 1rem;"><button class="btn-save" onclick="saveAll()">💾 Guardar Configuración Programa ${editingProg + 1}</button></div>`;
         }
         async function saveAll() {
+            // Leer form
             let payload = [];
             for(let i=0; i<5; i++) {
                 const timeVal = document.getElementById(`time_${i}`).value;
@@ -332,7 +333,13 @@
                     enabled:        document.getElementById(`ena_${i}`).checked
                 });
             }
-            const pumps = systemState.pumps || [];
+
+            // Fetch fresco desde Supabase para no sobreescribir datos concurrentes
+            const { data: freshData, error: fetchErr } = await supabaseClient
+                .from('system_state').select('pumps').eq('id', 1).single();
+            if (fetchErr) { showToast("Error leyendo estado actual"); return; }
+            const pumps = normalizeState(freshData || { pumps: [] }).pumps;
+
             for (let i = 0; i < payload.length; i++) {
                 if (!Array.isArray(pumps[i].programs)) pumps[i].programs = [defaultProgram(i), defaultProgram(i), defaultProgram(i)];
                 pumps[i].programs[editingProg] = {
@@ -348,11 +355,17 @@
                     enabled:        payload[i].enabled
                 };
             }
+
             const { error } = await supabaseClient
                 .from('system_state')
                 .update({ pumps })
                 .eq('id', 1);
-            if(!error) showToast("Configuración guardada en nube");
+            if (!error) {
+                systemState.pumps = pumps;  // actualizar cache local
+                showToast("Configuración guardada en nube ✔");
+            } else {
+                showToast("Error al guardar: " + error.message);
+            }
         }
         function showToast(msg) {
             const t = document.getElementById('toast');
