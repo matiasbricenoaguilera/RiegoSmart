@@ -164,10 +164,18 @@
                 const d       = decisions[index] || {};
                 const isPending = !!pendingCommands[index];
 
-                // Sincronizar countdown con datos frescos del servidor
-                if (isOn && state.remaining_s > 0) {
-                    startCountdown(index, state.remaining_s, state.total_s || 0);
-                } else if (!isOn) {
+                // Sincronizar countdown con datos frescos del servidor.
+                // Fallback: si remaining_s aún no llegó pero la bomba está encendida,
+                // usar d.min * 60 como duración total estimada.
+                const fallbackTotal = (d.min || 0) * 60;
+                if (isOn) {
+                    if (state.remaining_s > 0) {
+                        startCountdown(index, state.remaining_s, state.total_s || fallbackTotal);
+                    } else if (!countdowns[index] && fallbackTotal > 0) {
+                        // Primera vez que vemos la bomba encendida sin remaining_s todavía
+                        startCountdown(index, fallbackTotal, fallbackTotal);
+                    }
+                } else {
                     clearCountdown(index);
                 }
 
@@ -183,14 +191,18 @@
                 // --- Próximo riego ---
                 const schedHHMM   = d.sched_hhmm   || '--:--';
                 const minsToSched = d.mins_to_sched != null ? d.mins_to_sched : null;
+                const estMin      = d.min || 0;  // duración estimada en minutos
+                const durTag      = estMin > 0
+                    ? `<span style="color:#a78bfa; font-size:0.75rem;"> · regará ${estMin} min</span>`
+                    : '';
                 let schedLine = '';
                 if (minsToSched != null) {
                     if (minsToSched === 0) {
-                        schedLine = `<span style="color:var(--warn)">⚡ Evaluando ahora...</span>`;
+                        schedLine = `<span style="color:var(--warn)">⚡ Evaluando ahora...${durTag}</span>`;
                     } else if (minsToSched <= 60) {
-                        schedLine = `<span style="color:var(--warn)">🕐 ${schedHHMM} <small>(en ${fmtMins(minsToSched)})</small></span>`;
+                        schedLine = `<span style="color:var(--warn)">🕐 ${schedHHMM} <small>(en ${fmtMins(minsToSched)})</small>${durTag}</span>`;
                     } else {
-                        schedLine = `<span style="color:var(--text-muted)">🕐 ${schedHHMM} <small>(en ${fmtMins(minsToSched)})</small></span>`;
+                        schedLine = `<span style="color:var(--text-muted)">🕐 ${schedHHMM} <small>(en ${fmtMins(minsToSched)})</small>${durTag}</span>`;
                     }
                 }
 
@@ -198,14 +210,18 @@
                 let timerHtml = '';
                 if (isOn) {
                     const rem  = getCountdownRemaining(index);
-                    const tot  = countdowns[index] ? countdowns[index].total_s : 0;
+                    const tot  = countdowns[index] ? countdowns[index].total_s : fallbackTotal;
                     const prog = tot > 0 ? Math.max(0, Math.min(100, Math.round((rem / tot) * 100))) : 0;
+                    const totMin = tot > 0 ? Math.ceil(tot / 60) : (estMin || '?');
                     timerHtml = `
-                        <div style="margin:8px 0; background:rgba(16,185,129,0.1); border-radius:8px; padding:8px; border:1px solid rgba(16,185,129,0.3);">
-                            <div style="font-size:0.8rem; color:var(--success); margin-bottom:4px;">⏱ Tiempo restante</div>
-                            <div style="font-size:1.4rem; font-weight:700; color:var(--success); font-variant-numeric:tabular-nums;" id="timer_${index}">${fmtTime(rem)}</div>
-                            <div style="background:rgba(255,255,255,0.1); border-radius:4px; height:5px; margin-top:6px;">
-                                <div style="background:var(--success); border-radius:4px; height:5px; width:${prog}%; transition:width 1s linear;" id="timerBar_${index}"></div>
+                        <div style="margin:8px 0; background:rgba(16,185,129,0.1); border-radius:8px; padding:10px; border:1px solid rgba(16,185,129,0.3);">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                <span style="font-size:0.8rem; color:var(--success);">⏱ Tiempo restante</span>
+                                <span style="font-size:0.75rem; color:var(--text-muted);">de ${totMin} min totales</span>
+                            </div>
+                            <div style="font-size:1.6rem; font-weight:700; color:var(--success); font-variant-numeric:tabular-nums; text-align:center; letter-spacing:2px;" id="timer_${index}">${fmtTime(rem)}</div>
+                            <div style="background:rgba(255,255,255,0.1); border-radius:4px; height:6px; margin-top:8px;">
+                                <div style="background:var(--success); border-radius:4px; height:6px; width:${prog}%; transition:width 1s linear;" id="timerBar_${index}"></div>
                             </div>
                         </div>`;
                 }
