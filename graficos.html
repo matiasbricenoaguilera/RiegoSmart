@@ -14,16 +14,20 @@
             --accent: #3b82f6; --success: #10b981;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-        body { background: var(--bg-color); color: var(--text-main); min-height: 100vh; }
-        header { padding: 2rem; text-align: center; background: linear-gradient(to right, #1e293b, var(--bg-color)); border-bottom: 1px solid rgba(255,255,255,0.1); }
-        h1 { font-weight: 800; font-size: 2.5rem; background: -webkit-linear-gradient(#60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        nav { display: flex; justify-content: center; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
-        a.btn-nav { text-decoration: none; padding: 0.5rem 1.5rem; background: var(--card-bg); color: var(--text-main); border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s ease; }
+        body { background: var(--bg-color); color: var(--text-main); min-height: 100vh; overflow-x: hidden; }
+        header { padding: 2rem 1rem 1.5rem; text-align: center; background: linear-gradient(to right, #1e293b, var(--bg-color)); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        h1 { font-weight: 800; font-size: clamp(1.4rem, 5vw, 2.5rem); background: -webkit-linear-gradient(#60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        nav { display: flex; justify-content: center; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; padding: 0 0.5rem; }
+        a.btn-nav { text-decoration: none; padding: 0.4rem 1rem; background: var(--card-bg); color: var(--text-main); border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s ease; font-size: 0.85rem; white-space: nowrap; }
         a.btn-nav:hover, a.btn-nav.active { background: var(--accent); border-color: var(--accent); }
-        .container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+        .container { max-width: 1000px; margin: 1.5rem auto; padding: 0 1rem; }
         .card { background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.5rem; text-align: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 2rem; }
         .chart-container { position: relative; height: 400px; width: 100%; }
-        select { padding: 8px; border-radius: 8px; background: #1e293b; color: white; border: 1px solid #3b82f6; margin-bottom: 20px;}
+        select { padding: 8px; border-radius: 8px; background: #1e293b; color: white; border: 1px solid #3b82f6; margin-bottom: 20px; min-height: 38px; }
+        @media (max-width: 600px) {
+            .chart-container { height: 260px; }
+            .card { padding: 1rem; }
+        }
     </style>
 </head>
 <body>

@@ -12,34 +12,41 @@
             --accent: #3b82f6; --success: #10b981; --danger: #ef4444;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-        body { background: var(--bg-color); color: var(--text-main); min-height: 100vh; }
-        header { padding: 2rem; text-align: center; background: linear-gradient(to right, #1e293b, var(--bg-color)); border-bottom: 1px solid rgba(255,255,255,0.1); }
-        h1 { font-weight: 800; font-size: 2.5rem; background: -webkit-linear-gradient(#60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        nav { display: flex; justify-content: center; gap: 1rem; margin-top: 1rem; }
-        a.btn-nav { text-decoration: none; padding: 0.5rem 1.5rem; background: var(--card-bg); color: var(--text-main); border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s; }
+        body { background: var(--bg-color); color: var(--text-main); min-height: 100vh; overflow-x: hidden; }
+        header { padding: 2rem 1rem 1.5rem; text-align: center; background: linear-gradient(to right, #1e293b, var(--bg-color)); border-bottom: 1px solid rgba(255,255,255,0.1); position: relative; }
+        h1 { font-weight: 800; font-size: clamp(1.3rem, 5vw, 2.5rem); background: -webkit-linear-gradient(#60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        nav { display: flex; justify-content: center; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; padding: 0 0.5rem; }
+        a.btn-nav { text-decoration: none; padding: 0.4rem 1rem; background: var(--card-bg); color: var(--text-main); border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s; font-size: 0.85rem; white-space: nowrap; }
         a.btn-nav:hover, a.btn-nav.active { background: var(--accent); border-color: var(--accent); }
-        .container { max-width: 800px; margin: 3rem auto; padding: 0 1rem; }
+        .container { max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
         .schedule-item { background: var(--card-bg); padding: 1.5rem; border-radius: 12px; margin-bottom: 1rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; border: 1px solid rgba(255,255,255,0.1); }
         .schedule-info h3 { margin-bottom: 0.5rem; font-size: 1.25rem; }
-        .form-group { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-top: 0.5rem; }
+        .form-group { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-top: 0.5rem; }
         label { color: var(--text-muted); font-size: 0.9rem; }
-        input, select { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.5rem; border-radius: 6px; }
+        input, select { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.5rem; border-radius: 6px; min-height: 38px; }
         input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
-        .btn-save { background: var(--success); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-save { background: var(--success); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; min-height: 44px; }
         .btn-save:hover { background: #059669; }
-        #toast { position: fixed; bottom: 20px; right: 20px; background: var(--success); color: white; padding: 1rem 2rem; border-radius: 8px; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
-        .clock-container { position: absolute; top: 1.5rem; right: 1.5rem; background: var(--card-bg); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); text-align: right; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); backdrop-filter: blur(10px); z-index: 10; }
-        .clock-ntp { color: var(--accent); font-weight: 800; font-size: 1.2rem; display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
-        .clock-rtc { color: var(--text-muted); font-size: 0.8rem; margin-top: 2px; }
-        .program-selector { display: flex; justify-content: center; gap: 10px; margin-bottom: 2rem; }
-        .prog-btn { background: #334155; border: 1px solid rgba(255,255,255,0.1); color: white; padding: 10px 20px; border-radius: 12px; cursor: pointer; font-weight: 600; }
+        #toast { position: fixed; bottom: 20px; right: 20px; left: 20px; max-width: 300px; margin: auto; background: var(--success); color: white; padding: 1rem 1.5rem; border-radius: 8px; opacity: 0; transition: opacity 0.3s; pointer-events: none; text-align: center; }
+        .clock-container { position: absolute; top: 1rem; right: 1rem; background: var(--card-bg); padding: 0.4rem 0.8rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); text-align: right; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); backdrop-filter: blur(10px); z-index: 10; }
+        .clock-ntp { color: var(--accent); font-weight: 800; font-size: 1.1rem; display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+        .clock-rtc { color: var(--text-muted); font-size: 0.75rem; margin-top: 2px; }
+        .program-selector { display: flex; justify-content: center; gap: 10px; margin-bottom: 2rem; flex-wrap: wrap; }
+        .prog-btn { background: #334155; border: 1px solid rgba(255,255,255,0.1); color: white; padding: 10px 20px; border-radius: 12px; cursor: pointer; font-weight: 600; min-height: 44px; }
         .prog-btn.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
         .prog-btn.current { border: 2px solid var(--success); }
         .current-badge { color: var(--success); font-weight: bold; font-size: 0.8rem; display: block; margin-top: 5px; }
-        @media (max-width: 600px) { .clock-container { position: relative; top: 0; right: 0; margin: 0 auto 1rem; text-align: center; display: inline-block; } }
-        
-        .config-ip { margin-top: 20px; font-size: 0.9rem; color: #fff; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 10px; display: inline-block; }
-        .config-ip input { background: transparent; border: 1px solid var(--accent); color: white; padding: 5px; border-radius: 5px; }
+        .config-ip { margin-top: 20px; font-size: 0.9rem; color: #fff; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 10px; display: inline-block; max-width: 100%; }
+        .config-ip input { background: transparent; border: 1px solid var(--accent); color: white; padding: 5px; border-radius: 5px; max-width: 150px; }
+        @media (max-width: 600px) {
+            header { padding-top: 1rem; }
+            .clock-container { position: static; display: block; margin: 0 auto 0.75rem; text-align: center; width: fit-content; }
+            .container { margin: 1rem auto; }
+            .schedule-item { flex-direction: column; align-items: flex-start; }
+            .form-group { width: 100%; }
+            .form-group label { width: 100%; margin-top: 4px; }
+            input[type="number"], input[type="time"], select { width: 100%; }
+        }
     </style>
 </head>
 <body>

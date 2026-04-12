@@ -13,11 +13,11 @@
             --purple: #a78bfa; --cyan: #22d3ee;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-        body { background: var(--bg-color); color: var(--text-main); min-height: 100vh; }
-        header { padding: 2rem; text-align: center; background: linear-gradient(to right, #1e293b, var(--bg-color)); border-bottom: 1px solid rgba(255,255,255,0.1); }
-        h1 { font-weight: 800; font-size: 2.5rem; background: -webkit-linear-gradient(#60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        nav { display: flex; justify-content: center; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
-        a.btn-nav { text-decoration: none; padding: 0.5rem 1.5rem; background: var(--card-bg); color: var(--text-main); border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s ease; }
+        body { background: var(--bg-color); color: var(--text-main); min-height: 100vh; overflow-x: hidden; }
+        header { padding: 2rem 1rem 1.5rem; text-align: center; background: linear-gradient(to right, #1e293b, var(--bg-color)); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        h1 { font-weight: 800; font-size: clamp(1.4rem, 5vw, 2.5rem); background: -webkit-linear-gradient(#60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        nav { display: flex; justify-content: center; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; padding: 0 0.5rem; }
+        a.btn-nav { text-decoration: none; padding: 0.4rem 1rem; background: var(--card-bg); color: var(--text-main); border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s ease; font-size: 0.85rem; white-space: nowrap; }
         a.btn-nav:hover, a.btn-nav.active { background: var(--accent); border-color: var(--accent); }
         .cloud-badge { background: var(--accent); padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; vertical-align: top; margin-left: 10px; }
 
@@ -134,8 +134,18 @@
         .flow-cond { color: var(--warn); }
 
         footer {
-            text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.8rem;
+            text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.8rem;
             border-top: 1px solid rgba(255,255,255,0.05); margin-top: 3rem;
+        }
+        @media (max-width: 600px) {
+            .container { padding: 0 0.75rem; }
+            .term-card { padding: 1rem; }
+            .term-header { gap: 6px; }
+            .term-unit { margin-left: 0; width: 100%; font-size: 0.7rem; }
+            .formula-block { font-size: 0.75rem; padding: 8px 10px; overflow-x: auto; }
+            .summary-table { font-size: 0.75rem; display: block; overflow-x: auto; white-space: nowrap; }
+            .flow-box { font-size: 0.8rem; }
+            .section-title { font-size: 1rem; }
         }
     </style>
 </head>
