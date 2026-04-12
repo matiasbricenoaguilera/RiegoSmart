@@ -109,23 +109,21 @@
                     .single();
 
                 if (error) throw error;
-                lastPumps = data.pumps || [];
-                lastDecisions = data.decisions || [];
+                lastPumps = data.pumps || [];        // configuración (programas) - solo dashboard escribe
+                lastDecisions = data.decisions || []; // estado operativo - solo ESP32 escribe
 
-                // Limpiar pending si Supabase ya refleja el estado activo esperado
-                if (data.pumps) {
-                    data.pumps.forEach((p, i) => {
-                        if (pendingCommands[i]) {
-                            if (p.active === pendingCommands[i].expectedActive) {
-                                delete pendingCommands[i]; // ESP32 confirmó el cambio
-                            } else if (Date.now() - pendingCommands[i].time > 30000) {
-                                delete pendingCommands[i]; // Timeout de seguridad 30s
-                            }
+                // Limpiar pending usando decisions[i].active (el ESP32 ya no escribe pumps)
+                lastDecisions.forEach((d, i) => {
+                    if (pendingCommands[i]) {
+                        if (d.active === pendingCommands[i].expectedActive) {
+                            delete pendingCommands[i];
+                        } else if (Date.now() - pendingCommands[i].time > 30000) {
+                            delete pendingCommands[i];
                         }
-                    });
-                }
+                    }
+                });
 
-                renderPumps(lastPumps, lastDecisions);
+                renderPumps(lastDecisions);
                 document.getElementById('activeProgName').innerText = "Programa " + ((data.active_program || 0) + 1);
 
                 // Panel clima
@@ -161,7 +159,7 @@
             btnElement.disabled = true;
             pendingCommands[id] = { time: Date.now(), expectedActive: turnOn };
             // Reflejar el estado pendiente de inmediato, sin esperar próximo polling.
-            renderPumps(lastPumps, lastDecisions);
+            renderPumps(lastDecisions);
             
             try {
                 const { error } = await supabaseClient
@@ -202,30 +200,23 @@
             return m ? `${h}h ${m}min` : `${h}h`;
         }
 
-        function renderPumps(pumpData, decisions) {
-            if(!pumpData || !decisions) return;
+        function renderPumps(decisions) {
+            if(!decisions) return;
             const grid = document.getElementById('pumpGrid');
             grid.innerHTML = '';
-            pumpData.forEach((state, index) => {
-                const isOn    = state.active;
-                const manual  = state.manual;
-                const d       = decisions[index] || {};
+            decisions.forEach((d, index) => {
+                // El ESP32 ahora pone active/remaining_s/total_s/manual dentro de decisions[]
+                const isOn    = d.active  === true;
+                const manual  = d.manual  === true;
                 const isPending = !!pendingCommands[index];
 
-                // Gestión del countdown: sólo inicializar al encender, no en cada poll.
-                // El ESP32 empuja remaining_s cada 30s, el dashboard lee cada 4s.
-                // Sin este control, el countdown se reiniciaría al mismo valor cada 4s.
                 const fallbackTotal = (d.min || 0) * 60;
                 if (isOn) {
-                    const serverRem   = state.remaining_s > 0 ? state.remaining_s : fallbackTotal;
-                    const serverTotal = state.total_s > 0 ? state.total_s : fallbackTotal;
+                    const serverRem   = (d.remaining_s > 0) ? d.remaining_s : fallbackTotal;
+                    const serverTotal = (d.total_s > 0)     ? d.total_s     : fallbackTotal;
                     if (!countdowns[index]) {
-                        // Primera vez que vemos la bomba encendida → inicializar
                         startCountdown(index, serverRem, serverTotal);
                     } else {
-                        // Ya hay countdown corriendo → resincronizar SOLO si hay
-                        // desvío significativo (> 12s) respecto al valor del servidor.
-                        // Esto evita el reset visual en cada poll de 4s.
                         const localRem = getCountdownRemaining(index);
                         if (Math.abs(localRem - serverRem) > 12) {
                             startCountdown(index, serverRem, serverTotal);
@@ -407,6 +398,7 @@
             delete pendingCommands[id];
             togglePump(id, !!pending.expectedActive, btnElement);
         }
+
 
         async function fetchIrrigationLog() {
             try {
