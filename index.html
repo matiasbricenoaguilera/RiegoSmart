@@ -77,6 +77,12 @@
             <p>Conectando a Supabase...</p>
         </div>
     </div>
+
+    <!-- Historial de riegos -->
+    <div class="container" style="margin-top:1rem; padding-bottom:3rem;">
+        <h2 style="text-align:center; margin-bottom:1.25rem; font-size:1.1rem; color:var(--text-muted);">📋 Historial de Riegos</h2>
+        <div id="irrigationLog" style="font-size:0.82rem; color:var(--text-muted); text-align:center;">Cargando historial...</div>
+    </div>
     
     <script>
         const SUPABASE_URL = 'https://ontyquiklrmebtzcvjyn.supabase.co';
@@ -85,7 +91,9 @@
 
         window.onload = () => {
             fetchState();
-            setInterval(fetchState, 4000); 
+            setInterval(fetchState, 4000);
+            fetchIrrigationLog();
+            setInterval(fetchIrrigationLog, 60000);  // refrescar cada 60s
         };
 
         let pendingCommands = {}; // {pumpId: {time, expectedActive}}
@@ -227,6 +235,22 @@
                     clearCountdown(index);
                 }
 
+                // --- Sensor offline badge ---
+                const sensorAge = d.sensor_age_s;
+                const sensorNeverSeen = sensorAge === 65535 || sensorAge === 0xFFFF;
+                const sensorOffline = sensorNeverSeen || (sensorAge != null && sensorAge > 3600);
+                let sensorBadge = '';
+                if (sensorAge != null && sensorOffline) {
+                    const label = sensorNeverSeen ? 'nunca recibido' : (sensorAge >= 3600 ? Math.round(sensorAge/3600) + 'h sin señal' : Math.round(sensorAge/60) + 'min sin señal');
+                    sensorBadge = `<div style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); border-radius:6px; padding:5px 10px; margin-bottom:8px; font-size:0.75rem; color:#ef4444; font-weight:600;">📡 Sin señal del satélite (${label})</div>`;
+                }
+
+                // --- Zona deshabilitada ---
+                const zoneEnabled = d.enabled !== false;
+                const disabledBadge = !zoneEnabled
+                    ? `<div style="background:rgba(100,116,139,0.2); border:1px solid rgba(100,116,139,0.4); border-radius:6px; padding:5px 10px; margin-bottom:8px; font-size:0.75rem; color:#94a3b8; font-weight:600;">⛔ Zona deshabilitada</div>`
+                    : '';
+
                 // --- Humedad y umbral ---
                 const hum = d.hum != null ? d.hum : '--';
                 const thr = d.thr != null ? d.thr : '--';
@@ -292,11 +316,13 @@
                 }
 
                 grid.innerHTML += `
-                    <div class="card">
+                    <div class="card" style="${!zoneEnabled ? 'opacity:0.7;' : ''}">
                         <div class="pump-icon ${isOn ? 'on' : ''}">💦</div>
                         <h2>Bomba ${index + 1}</h2>
                         <div class="status-badge ${isOn ? 'status-on' : 'status-off'}">${isOn ? 'REGANDO' : 'APAGADA'}</div>
 
+                        ${disabledBadge}
+                        ${sensorBadge}
                         ${timerHtml}
 
                         <!-- Humedad vs Umbral -->
@@ -380,6 +406,63 @@
             if (!pending) return;
             delete pendingCommands[id];
             togglePump(id, !!pending.expectedActive, btnElement);
+        }
+
+        async function fetchIrrigationLog() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('irrigation_log')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(15);
+                if (error) throw error;
+                const el = document.getElementById('irrigationLog');
+                if (!data || data.length === 0) {
+                    el.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Sin registros aún. Los riegos completados aparecerán aquí.</p>';
+                    return;
+                }
+                const zonas = ['Antejardín','Huerta','Patio','Entrada Auto','Macetas'];
+                let html = '<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:0.8rem;">';
+                html += `<thead><tr style="color:var(--text-muted); border-bottom:1px solid rgba(255,255,255,0.1);">
+                    <th style="padding:6px 10px; text-align:left;">Fecha</th>
+                    <th style="padding:6px 10px; text-align:left;">Zona</th>
+                    <th style="padding:6px 10px; text-align:center;">Estado</th>
+                    <th style="padding:6px 10px; text-align:center;">Duración</th>
+                    <th style="padding:6px 10px; text-align:center;">Agua</th>
+                    <th style="padding:6px 10px; text-align:center;">Hum. inicio</th>
+                    <th style="padding:6px 10px; text-align:center;">Variación</th>
+                    <th style="padding:6px 10px; text-align:center;">Lluvia</th>
+                </tr></thead><tbody>`;
+                data.forEach(r => {
+                    const fecha = new Date(r.created_at).toLocaleString('es-CL', { dateStyle:'short', timeStyle:'short' });
+                    const zona  = zonas[r.zone_id - 1] || `Zona ${r.zone_id}`;
+                    const estado = r.cancelled
+                        ? `<span style="color:#f59e0b;">⛔ Cancelado</span>`
+                        : `<span style="color:var(--success);">✅ Completado</span>`;
+                    const dur   = r.cancelled ? '—' : `${r.duration_mins} min`;
+                    const agua  = r.cancelled ? '—' : `${(r.liters||0).toFixed(1)} L`;
+                    const humS  = r.hum_start != null ? r.hum_start + '%' : '—';
+                    const delta = r.delta_hum != null
+                        ? `<span style="color:${r.delta_hum >= 0 ? 'var(--success)' : 'var(--danger)'}">${r.delta_hum >= 0 ? '+' : ''}${r.delta_hum}%</span>`
+                        : '—';
+                    const lluvia = r.rain_mm != null ? `${r.rain_mm.toFixed(1)} mm` : '—';
+                    html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                        <td style="padding:6px 10px; color:var(--text-muted);">${fecha}</td>
+                        <td style="padding:6px 10px;">${zona}</td>
+                        <td style="padding:6px 10px; text-align:center;">${estado}</td>
+                        <td style="padding:6px 10px; text-align:center;">${dur}</td>
+                        <td style="padding:6px 10px; text-align:center;">${agua}</td>
+                        <td style="padding:6px 10px; text-align:center;">${humS}</td>
+                        <td style="padding:6px 10px; text-align:center;">${delta}</td>
+                        <td style="padding:6px 10px; text-align:center;">${lluvia}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table></div>';
+                el.innerHTML = html;
+            } catch(e) {
+                document.getElementById('irrigationLog').innerHTML =
+                    '<p style="color:#ef4444; text-align:center;">Error cargando historial (tabla irrigation_log no existe aún)</p>';
+            }
         }
     </script>
 </body>

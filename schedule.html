@@ -111,7 +111,8 @@
                 startHour: 7, startMinute: idx * 5,
                 flowRate: 2.0, area: 1.0,
                 vwcThreshold: 30, assignedStationID: idx + 1,
-                efficiency: 0.85, soilMaxMm: 50, Kc: 0.8
+                efficiency: 0.85, soilMaxMm: 50, Kc: 0.8,
+                rainCancelMm: 5.0, maxDecisionMin: 10, enabled: true
             };
         }
 
@@ -156,9 +157,12 @@
                         startHour: cfg.startHour, startMinute: cfg.startMinute,
                         flowRate: cfg.flowRate, area: cfg.area,
                         vwcThreshold: cfg.vwcThreshold, assignedStationID: cfg.assignedStationID,
-                        efficiency: cfg.efficiency ?? 0.85,
-                        soilMaxMm:  cfg.soilMaxMm  ?? 50,
-                        Kc:         cfg.Kc         ?? 0.8
+                        efficiency:     cfg.efficiency     ?? 0.85,
+                        soilMaxMm:      cfg.soilMaxMm      ?? 50,
+                        Kc:             cfg.Kc             ?? 0.8,
+                        rainCancelMm:   cfg.rainCancelMm   ?? 5.0,
+                        maxDecisionMin: cfg.maxDecisionMin ?? 10,
+                        enabled:        cfg.enabled        ?? true
                     };
                 });
 
@@ -239,13 +243,22 @@
                 const hh = p.startHour.toString().padStart(2, '0');
                 const mm = p.startMinute.toString().padStart(2, '0');
                 const timeStr = `${hh}:${mm}`;
+                const enabledStyle = p.enabled === false ? 'opacity:0.55; border-left-color:#ef4444 !important;' : '';
                 container.innerHTML += `
-                    <div class="schedule-item" style="border-left: 4px solid ${zona.color};">
-                        <div class="schedule-info">
-                            <h3>${zona.icono} Bomba ${idx + 1} — <span style="color:${zona.color}">${zona.nombre}</span></h3>
-                            <small style="color:var(--text-muted)">Pin MOSFET ${idx + 1} | Programa ${editingProg + 1}</small>
+                    <div class="schedule-item" style="border-left: 4px solid ${zona.color}; ${enabledStyle}">
+                        <div class="schedule-info" style="width:100%; display:flex; justify-content:space-between; align-items:flex-start;">
+                            <div>
+                                <h3>${zona.icono} Bomba ${idx + 1} — <span style="color:${zona.color}">${zona.nombre}</span></h3>
+                                <small style="color:var(--text-muted)">Pin MOSFET ${idx + 1} | Programa ${editingProg + 1}</small>
+                            </div>
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.85rem; color:var(--text-muted);">
+                                <span>Zona activa</span>
+                                <input type="checkbox" id="ena_${idx}" ${p.enabled !== false ? 'checked' : ''}
+                                    onchange="document.querySelector('#card_${idx}').style.opacity = this.checked ? '1' : '0.55'"
+                                    style="width:18px; height:18px; cursor:pointer; accent-color:var(--success);">
+                            </label>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" id="card_${idx}" style="opacity:${p.enabled !== false ? '1' : '0.55'}">
                             <div><label>Hora Inicio</label><br><input type="time" id="time_${idx}" value="${timeStr}"></div>
                             <div><label>Área (m²)</label><br><input type="number" id="area_${idx}" value="${p.area}" step="0.1" min="0.1"></div>
                             <div><label>Caudal (L/min)</label><br><input type="number" id="flow_${idx}" value="${p.flowRate}" step="0.1" min="0.1"></div>
@@ -281,6 +294,16 @@
                                     <small style="color:var(--text-muted); display:block;">suculenta≈0.3 · césped≈0.8 · tomate≈1.1</small>
                                     <input type="number" id="kc_${idx}" value="${p.Kc}" step="0.05" min="0.1" max="2.0" style="width:90px">
                                 </div>
+                                <div>
+                                    <label>Lluvia cancela (mm)</label>
+                                    <small style="color:var(--text-muted); display:block;">pronóstico 24h que anula riego</small>
+                                    <input type="number" id="rain_${idx}" value="${p.rainCancelMm ?? 5.0}" step="0.5" min="0" max="100" style="width:90px">
+                                </div>
+                                <div>
+                                    <label>Máx. riego (min)</label>
+                                    <small style="color:var(--text-muted); display:block;">tope de duración calculada</small>
+                                    <input type="number" id="maxmin_${idx}" value="${p.maxDecisionMin ?? 10}" step="1" min="1" max="60" style="width:90px">
+                                </div>
                             </div>
                         </details>
                     </div>
@@ -301,9 +324,12 @@
                     area: parseFloat(document.getElementById(`area_${i}`).value),
                     vwcThreshold: parseFloat(document.getElementById(`thr_${i}`).value),
                     assignedStationID: parseInt(sid, 10),
-                    efficiency: parseFloat(document.getElementById(`eff_${i}`).value  || 0.85),
-                    soilMaxMm:  parseFloat(document.getElementById(`soil_${i}`).value || 50),
-                    Kc:         parseFloat(document.getElementById(`kc_${i}`).value   || 0.8)
+                    efficiency:     parseFloat(document.getElementById(`eff_${i}`).value    || 0.85),
+                    soilMaxMm:      parseFloat(document.getElementById(`soil_${i}`).value   || 50),
+                    Kc:             parseFloat(document.getElementById(`kc_${i}`).value     || 0.8),
+                    rainCancelMm:   parseFloat(document.getElementById(`rain_${i}`).value   || 5.0),
+                    maxDecisionMin: parseInt(document.getElementById(`maxmin_${i}`).value   || 10, 10),
+                    enabled:        document.getElementById(`ena_${i}`).checked
                 });
             }
             const pumps = systemState.pumps || [];
@@ -314,9 +340,12 @@
                     flowRate: payload[i].flowRate, area: payload[i].area,
                     vwcThreshold: payload[i].vwcThreshold,
                     assignedStationID: payload[i].assignedStationID,
-                    efficiency: payload[i].efficiency,
-                    soilMaxMm:  payload[i].soilMaxMm,
-                    Kc:         payload[i].Kc
+                    efficiency:     payload[i].efficiency,
+                    soilMaxMm:      payload[i].soilMaxMm,
+                    Kc:             payload[i].Kc,
+                    rainCancelMm:   payload[i].rainCancelMm,
+                    maxDecisionMin: payload[i].maxDecisionMin,
+                    enabled:        payload[i].enabled
                 };
             }
             const { error } = await supabaseClient
