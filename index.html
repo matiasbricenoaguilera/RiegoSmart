@@ -52,8 +52,17 @@
         </nav>
     </header>
     <div class="container">
-        <div style="text-align: center; margin-bottom: 2rem;">
+        <div style="text-align: center; margin-bottom: 1rem;">
             <p style="color:var(--text-muted)">Programa Activo: <strong id="activeProgName" style="color:var(--accent)">--</strong></p>
+        </div>
+        <!-- Panel clima -->
+        <div id="weatherPanel" style="display:none; background:rgba(30,41,59,0.8); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px 20px; margin-bottom:1.5rem; display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:center; font-size:0.85rem;">
+            <span style="color:var(--accent); font-weight:700;">🌤 Clima próx. 24h</span>
+            <span id="wxRain">🌧 --mm</span>
+            <span id="wxET0">🌿 ET₀ --mm/d</span>
+            <span id="wxTemp">🌡 --/--°C</span>
+            <span id="wxDesc" style="color:var(--text-muted);">--</span>
+            <span id="wxAt" style="color:var(--text-muted); font-size:0.75rem;"></span>
         </div>
         <div class="grid" id="pumpGrid">
             <p>Conectando a Supabase...</p>
@@ -101,6 +110,21 @@
 
                 renderPumps(lastPumps, lastDecisions);
                 document.getElementById('activeProgName').innerText = "Programa " + ((data.active_program || 0) + 1);
+
+                // Panel clima
+                const wx = data.weather;
+                if (wx && wx.fetched) {
+                    const panel = document.getElementById('weatherPanel');
+                    panel.style.display = 'flex';
+                    const rainColor = wx.rain_24h >= 5 ? '#ef4444' : wx.rain_24h > 0 ? '#f59e0b' : '#10b981';
+                    document.getElementById('wxRain').innerHTML  = `🌧 <span style="color:${rainColor};font-weight:700">${wx.rain_24h.toFixed(1)}mm</span> lluvia`;
+                    document.getElementById('wxET0').innerHTML   = `🌿 ET₀ <span style="color:#a78bfa;font-weight:700">${wx.et0_mm.toFixed(2)}mm/d</span>`;
+                    document.getElementById('wxTemp').innerHTML  = `🌡 ${wx.tmax.toFixed(0)}°/${wx.tmin.toFixed(0)}°C`;
+                    document.getElementById('wxDesc').innerText  = wx.desc || '';
+                    document.getElementById('wxAt').innerText    = wx.at ? `act. ${wx.at}` : '';
+                    if (wx.rain_24h >= 5) panel.style.borderColor = 'rgba(239,68,68,0.5)';
+                    else panel.style.borderColor = 'rgba(255,255,255,0.1)';
+                }
                 
                 let now = new Date();
                 document.getElementById('lastRefresh').innerText = "Última act: " + now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0') + ":" + now.getSeconds().toString().padStart(2, '0');

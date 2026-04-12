@@ -100,12 +100,10 @@
 
         function defaultProgram(idx) {
             return {
-                startHour: 7,
-                startMinute: idx * 5,
-                flowRate: 2.0,
-                area: 1.0,
-                vwcThreshold: 30,
-                assignedStationID: idx + 1
+                startHour: 7, startMinute: idx * 5,
+                flowRate: 2.0, area: 1.0,
+                vwcThreshold: 30, assignedStationID: idx + 1,
+                efficiency: 0.85, soilMaxMm: 50, Kc: 0.8
             };
         }
 
@@ -147,12 +145,12 @@
                     const cfg = p.programs[editingProg] || defaultProgram(idx);
                     return {
                         id: idx,
-                        startHour: cfg.startHour,
-                        startMinute: cfg.startMinute,
-                        flowRate: cfg.flowRate,
-                        area: cfg.area,
-                        vwcThreshold: cfg.vwcThreshold,
-                        assignedStationID: cfg.assignedStationID
+                        startHour: cfg.startHour, startMinute: cfg.startMinute,
+                        flowRate: cfg.flowRate, area: cfg.area,
+                        vwcThreshold: cfg.vwcThreshold, assignedStationID: cfg.assignedStationID,
+                        efficiency: cfg.efficiency ?? 0.85,
+                        soilMaxMm:  cfg.soilMaxMm  ?? 50,
+                        Kc:         cfg.Kc         ?? 0.8
                     };
                 });
 
@@ -254,6 +252,29 @@
                                 </select>
                             </div>
                         </div>
+                        <!-- Parámetros agronómicos Nivel 2 -->
+                        <details style="margin-top:10px; width:100%">
+                            <summary style="cursor:pointer; color:var(--accent); font-size:0.85rem; user-select:none;">
+                                🧪 Parámetros agronómicos (cálculo físico de duración)
+                            </summary>
+                            <div class="form-group" style="margin-top:8px; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px;">
+                                <div>
+                                    <label>Eficiencia sistema</label>
+                                    <small style="color:var(--text-muted); display:block;">goteo≈0.90 · aspersor≈0.75</small>
+                                    <input type="number" id="eff_${idx}" value="${p.efficiency}" step="0.05" min="0.1" max="1.0" style="width:90px">
+                                </div>
+                                <div>
+                                    <label>Cap. suelo (mm)</label>
+                                    <small style="color:var(--text-muted); display:block;">agua disponible en perfil</small>
+                                    <input type="number" id="soil_${idx}" value="${p.soilMaxMm}" step="5" min="5" max="300" style="width:90px">
+                                </div>
+                                <div>
+                                    <label>Kc (coef. cultivo)</label>
+                                    <small style="color:var(--text-muted); display:block;">suculenta≈0.3 · césped≈0.8 · tomate≈1.1</small>
+                                    <input type="number" id="kc_${idx}" value="${p.Kc}" step="0.05" min="0.1" max="2.0" style="width:90px">
+                                </div>
+                            </div>
+                        </details>
                     </div>
                 `;
             });
@@ -265,18 +286,29 @@
                 const timeVal = document.getElementById(`time_${i}`).value;
                 const [h, m] = timeVal.split(':');
                 const sid = document.getElementById(`sensor_${i}`).value;
-                payload.push({id: i, startHour: parseInt(h, 10), startMinute: parseInt(m, 10), flowRate: parseFloat(document.getElementById(`flow_${i}`).value), area: parseFloat(document.getElementById(`area_${i}`).value), vwcThreshold: parseFloat(document.getElementById(`thr_${i}`).value), assignedStationID: parseInt(sid, 10)});
+                payload.push({
+                    id: i,
+                    startHour: parseInt(h, 10), startMinute: parseInt(m, 10),
+                    flowRate: parseFloat(document.getElementById(`flow_${i}`).value),
+                    area: parseFloat(document.getElementById(`area_${i}`).value),
+                    vwcThreshold: parseFloat(document.getElementById(`thr_${i}`).value),
+                    assignedStationID: parseInt(sid, 10),
+                    efficiency: parseFloat(document.getElementById(`eff_${i}`).value  || 0.85),
+                    soilMaxMm:  parseFloat(document.getElementById(`soil_${i}`).value || 50),
+                    Kc:         parseFloat(document.getElementById(`kc_${i}`).value   || 0.8)
+                });
             }
             const pumps = systemState.pumps || [];
             for (let i = 0; i < payload.length; i++) {
                 if (!Array.isArray(pumps[i].programs)) pumps[i].programs = [defaultProgram(i), defaultProgram(i), defaultProgram(i)];
                 pumps[i].programs[editingProg] = {
-                    startHour: payload[i].startHour,
-                    startMinute: payload[i].startMinute,
-                    flowRate: payload[i].flowRate,
-                    area: payload[i].area,
+                    startHour: payload[i].startHour, startMinute: payload[i].startMinute,
+                    flowRate: payload[i].flowRate, area: payload[i].area,
                     vwcThreshold: payload[i].vwcThreshold,
-                    assignedStationID: payload[i].assignedStationID
+                    assignedStationID: payload[i].assignedStationID,
+                    efficiency: payload[i].efficiency,
+                    soilMaxMm:  payload[i].soilMaxMm,
+                    Kc:         payload[i].Kc
                 };
             }
             const { error } = await supabaseClient
