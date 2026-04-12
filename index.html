@@ -199,16 +199,24 @@
                 const d       = decisions[index] || {};
                 const isPending = !!pendingCommands[index];
 
-                // Sincronizar countdown con datos frescos del servidor.
-                // Fallback: si remaining_s aún no llegó pero la bomba está encendida,
-                // usar d.min * 60 como duración total estimada.
+                // Gestión del countdown: sólo inicializar al encender, no en cada poll.
+                // El ESP32 empuja remaining_s cada 30s, el dashboard lee cada 4s.
+                // Sin este control, el countdown se reiniciaría al mismo valor cada 4s.
                 const fallbackTotal = (d.min || 0) * 60;
                 if (isOn) {
-                    if (state.remaining_s > 0) {
-                        startCountdown(index, state.remaining_s, state.total_s || fallbackTotal);
-                    } else if (!countdowns[index] && fallbackTotal > 0) {
-                        // Primera vez que vemos la bomba encendida sin remaining_s todavía
-                        startCountdown(index, fallbackTotal, fallbackTotal);
+                    const serverRem   = state.remaining_s > 0 ? state.remaining_s : fallbackTotal;
+                    const serverTotal = state.total_s > 0 ? state.total_s : fallbackTotal;
+                    if (!countdowns[index]) {
+                        // Primera vez que vemos la bomba encendida → inicializar
+                        startCountdown(index, serverRem, serverTotal);
+                    } else {
+                        // Ya hay countdown corriendo → resincronizar SOLO si hay
+                        // desvío significativo (> 12s) respecto al valor del servidor.
+                        // Esto evita el reset visual en cada poll de 4s.
+                        const localRem = getCountdownRemaining(index);
+                        if (Math.abs(localRem - serverRem) > 12) {
+                            startCountdown(index, serverRem, serverTotal);
+                        }
                     }
                 } else {
                     clearCountdown(index);
