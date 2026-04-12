@@ -256,16 +256,20 @@
                     const tot  = countdowns[index] ? countdowns[index].total_s : fallbackTotal;
                     const prog = tot > 0 ? Math.max(0, Math.min(100, Math.round((rem / tot) * 100))) : 0;
                     const totMin = tot > 0 ? Math.ceil(tot / 60) : (estMin || '?');
+                    const timerFinished = rem <= 0;
                     timerHtml = `
-                        <div style="margin:8px 0; background:rgba(16,185,129,0.1); border-radius:8px; padding:10px; border:1px solid rgba(16,185,129,0.3);">
+                        <div style="margin:8px 0; background:${timerFinished ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)'}; border-radius:8px; padding:10px; border:1px solid ${timerFinished ? 'rgba(245,158,11,0.4)' : 'rgba(16,185,129,0.3)'};">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                                <span style="font-size:0.8rem; color:var(--success);">⏱ Tiempo restante</span>
+                                <span style="font-size:0.8rem; color:${timerFinished ? 'var(--warn)' : 'var(--success)'};">
+                                    ${timerFinished ? '⏳ Finalizando...' : '⏱ Tiempo restante'}
+                                </span>
                                 <span style="font-size:0.75rem; color:var(--text-muted);">de ${totMin} min totales</span>
                             </div>
-                            <div style="font-size:1.6rem; font-weight:700; color:var(--success); font-variant-numeric:tabular-nums; text-align:center; letter-spacing:2px;" id="timer_${index}">${fmtTime(rem)}</div>
+                            <div style="font-size:1.6rem; font-weight:700; color:${timerFinished ? 'var(--warn)' : 'var(--success)'}; font-variant-numeric:tabular-nums; text-align:center; letter-spacing:2px;" id="timer_${index}">${timerFinished ? '0:00' : fmtTime(rem)}</div>
                             <div style="background:rgba(255,255,255,0.1); border-radius:4px; height:6px; margin-top:8px;">
-                                <div style="background:var(--success); border-radius:4px; height:6px; width:${prog}%; transition:width 1s linear;" id="timerBar_${index}"></div>
+                                <div style="background:${timerFinished ? 'var(--warn)' : 'var(--success)'}; border-radius:4px; height:6px; width:${timerFinished ? 100 : prog}%; transition:width 1s linear;" id="timerBar_${index}"></div>
                             </div>
+                            ${timerFinished ? '<div style="text-align:center;font-size:0.72rem;color:var(--warn);margin-top:4px;">Esperando confirmación del ESP32...</div>' : ''}
                         </div>`;
                 }
 
