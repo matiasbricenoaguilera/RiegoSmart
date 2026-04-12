@@ -128,71 +128,174 @@
             }
         }
 
+        // Contadores locales para el tiempo restante (se actualizan entre polls de Supabase)
+        let countdowns = {}; // { pumpIndex: { remaining_s, total_s, ts } }
+
+        function startCountdown(index, remaining_s, total_s) {
+            countdowns[index] = { remaining_s, total_s, ts: Date.now() };
+        }
+        function clearCountdown(index) { delete countdowns[index]; }
+
+        function getCountdownRemaining(index) {
+            const c = countdowns[index];
+            if (!c) return 0;
+            const elapsed = (Date.now() - c.ts) / 1000;
+            return Math.max(0, c.remaining_s - elapsed);
+        }
+
+        function fmtTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m}:${s.toString().padStart(2,'0')}`;
+        }
+        function fmtMins(mins) {
+            if (mins < 60)  return `${mins} min`;
+            const h = Math.floor(mins / 60), m = mins % 60;
+            return m ? `${h}h ${m}min` : `${h}h`;
+        }
+
         function renderPumps(pumpData, decisions) {
             if(!pumpData || !decisions) return;
             const grid = document.getElementById('pumpGrid');
             grid.innerHTML = '';
             pumpData.forEach((state, index) => {
-                const isOn = state.active;
-                const manual = state.manual;
-                const d = decisions[index] || {};
+                const isOn    = state.active;
+                const manual  = state.manual;
+                const d       = decisions[index] || {};
                 const isPending = !!pendingCommands[index];
-                
+
+                // Sincronizar countdown con datos frescos del servidor
+                if (isOn && state.remaining_s > 0) {
+                    startCountdown(index, state.remaining_s, state.total_s || 0);
+                } else if (!isOn) {
+                    clearCountdown(index);
+                }
+
+                // --- Humedad y umbral ---
+                const hum = d.hum != null ? d.hum : '--';
+                const thr = d.thr != null ? d.thr : '--';
+                const humPct = typeof hum === 'number' ? hum : 0;
+                const thrPct = typeof thr === 'number' ? thr : 100;
+                const humColor = humPct >= thrPct ? '#10b981' : humPct >= thrPct * 0.6 ? '#f59e0b' : '#ef4444';
+                const humBarWidth = Math.min(100, Math.round(humPct));
+                const thrBarPos  = Math.min(100, Math.round(thrPct));
+
+                // --- Próximo riego ---
+                const schedHHMM   = d.sched_hhmm   || '--:--';
+                const minsToSched = d.mins_to_sched != null ? d.mins_to_sched : null;
+                let schedLine = '';
+                if (minsToSched != null) {
+                    if (minsToSched === 0) {
+                        schedLine = `<span style="color:var(--warn)">⚡ Evaluando ahora...</span>`;
+                    } else if (minsToSched <= 60) {
+                        schedLine = `<span style="color:var(--warn)">🕐 ${schedHHMM} <small>(en ${fmtMins(minsToSched)})</small></span>`;
+                    } else {
+                        schedLine = `<span style="color:var(--text-muted)">🕐 ${schedHHMM} <small>(en ${fmtMins(minsToSched)})</small></span>`;
+                    }
+                }
+
+                // --- Timer de riego activo ---
+                let timerHtml = '';
+                if (isOn) {
+                    const rem  = getCountdownRemaining(index);
+                    const tot  = countdowns[index] ? countdowns[index].total_s : 0;
+                    const prog = tot > 0 ? Math.max(0, Math.min(100, Math.round((rem / tot) * 100))) : 0;
+                    timerHtml = `
+                        <div style="margin:8px 0; background:rgba(16,185,129,0.1); border-radius:8px; padding:8px; border:1px solid rgba(16,185,129,0.3);">
+                            <div style="font-size:0.8rem; color:var(--success); margin-bottom:4px;">⏱ Tiempo restante</div>
+                            <div style="font-size:1.4rem; font-weight:700; color:var(--success); font-variant-numeric:tabular-nums;" id="timer_${index}">${fmtTime(rem)}</div>
+                            <div style="background:rgba(255,255,255,0.1); border-radius:4px; height:5px; margin-top:6px;">
+                                <div style="background:var(--success); border-radius:4px; height:5px; width:${prog}%; transition:width 1s linear;" id="timerBar_${index}"></div>
+                            </div>
+                        </div>`;
+                }
+
+                // --- Botón ---
                 let btnHtml;
                 if (isPending) {
-                    const ageMs = Date.now() - pendingCommands[index].time;
-                    const timedOut = ageMs > 15000;
-                    if (timedOut) {
-                        btnHtml = `<button class="toggle-btn btn-danger" onclick="retryPending(${index}, this)">
-                            ⚠ Sin confirmación (reintentar)
-                        </button>`;
-                    } else {
-                        btnHtml = `<button class="toggle-btn" disabled style="opacity:0.6; cursor:wait; background:#f59e0b">
-                            ⏳ Esperando confirmación del ESP32...
-                        </button>`;
-                    }
+                    const timedOut = Date.now() - pendingCommands[index].time > 15000;
+                    btnHtml = timedOut
+                        ? `<button class="toggle-btn btn-danger" onclick="retryPending(${index}, this)">⚠ Sin confirmación (reintentar)</button>`
+                        : `<button class="toggle-btn" disabled style="opacity:0.6;cursor:wait;background:#f59e0b">⏳ Esperando confirmación...</button>`;
                 } else if (isOn) {
-                    btnHtml = `<button class="toggle-btn btn-danger" onclick="togglePump(${index}, false, this)">
-                        🔴 APAGAR
-                    </button>`;
+                    btnHtml = `<button class="toggle-btn btn-danger" onclick="togglePump(${index}, false, this)">🔴 APAGAR</button>`;
                 } else {
-                    btnHtml = `<button class="toggle-btn" onclick="togglePump(${index}, true, this)">
-                        🟢 ENCENDER
-                    </button>`;
+                    btnHtml = `<button class="toggle-btn" onclick="togglePump(${index}, true, this)">🟢 ENCENDER</button>`;
                 }
 
                 grid.innerHTML += `
                     <div class="card">
                         <div class="pump-icon ${isOn ? 'on' : ''}">💦</div>
                         <h2>Bomba ${index + 1}</h2>
-                        <div class="status-badge ${isOn ? 'status-on' : 'status-off'}">${isOn ? 'ENCENDIDA' : 'APAGADA'}</div>
-                        
-                        <div style="background:rgba(0,0,0,0.2); border-radius:8px; padding:10px; margin-bottom:15px; font-size:0.8rem; text-align:left;">
-                            <strong style="color:var(--accent)">🧠 Motor de Decisión:</strong><br>
-                            <span style="color:#fff">Humedad: ${d.hum || 0}% <small>(${d.source || 'N/A'})</small></span><br>
-                            <span style="color:#fff">Necesidad: ${d.mm || 0} mm</span><br>
-                            <span style="color:var(--warn)">Tiempo: ${d.min || 0} min</span><br>
-                            <small style="color:var(--text-muted)">Estado: ${d.reason || 'Sincronizando'}</small><br>
-                            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:5px 0;">
-                            <strong style="color:var(--success)">📊 Último Riego:</strong><br>
-                            <small style="color:#fff">${d.result || 'Sin datos'}</small>
+                        <div class="status-badge ${isOn ? 'status-on' : 'status-off'}">${isOn ? 'REGANDO' : 'APAGADA'}</div>
+
+                        ${timerHtml}
+
+                        <!-- Humedad vs Umbral -->
+                        <div style="background:rgba(0,0,0,0.2); border-radius:8px; padding:10px; margin-bottom:10px; text-align:left; font-size:0.82rem;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                <strong style="color:var(--accent)">💧 Humedad del suelo</strong>
+                                <span style="color:${humColor}; font-weight:700;">${hum}%</span>
+                            </div>
+                            <!-- Barra de humedad con marcador de umbral -->
+                            <div style="position:relative; background:rgba(255,255,255,0.1); border-radius:4px; height:8px; margin-bottom:6px;">
+                                <div style="background:${humColor}; border-radius:4px; height:8px; width:${humBarWidth}%; transition:width 0.5s;"></div>
+                                <div style="position:absolute; top:-3px; left:${thrBarPos}%; transform:translateX(-50%); width:2px; height:14px; background:#f59e0b; border-radius:1px;" title="Umbral: ${thr}%"></div>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; color:var(--text-muted); font-size:0.75rem;">
+                                <span>0%</span>
+                                <span style="color:#f59e0b;">Umbral: ${thr}%</span>
+                                <span>100%</span>
+                            </div>
                         </div>
 
-                        <p style="color:var(--text-muted); margin-bottom: 1rem; font-size: 0.85rem;">
+                        <!-- Estado y próximo riego -->
+                        <div style="background:rgba(0,0,0,0.2); border-radius:8px; padding:10px; margin-bottom:10px; text-align:left; font-size:0.82rem;">
+                            <div style="margin-bottom:4px;">
+                                <strong style="color:var(--accent)">🧠 Estado:</strong>
+                                <span style="color:#fff; margin-left:4px;">${d.result || 'Sincronizando...'}</span>
+                            </div>
+                            <div style="color:var(--text-muted); margin-bottom:4px;">
+                                <strong>Decisión:</strong> ${d.reason || '—'}
+                                ${d.min ? `<span style="color:var(--warn)"> · ${d.min} min programados</span>` : ''}
+                            </div>
+                            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.08); margin:6px 0;">
+                            <div><strong style="color:var(--accent)">📅 Próximo riego:</strong></div>
+                            <div style="margin-top:2px;">${schedLine || '<span style="color:var(--text-muted)">Sin datos</span>'}</div>
+                        </div>
+
+                        <p style="color:var(--text-muted); margin-bottom:0.75rem; font-size:0.82rem;">
                             Modo: ${manual ? '🔴 MANUAL FORZADO' : '🟢 AUTOMÁTICO'}
                         </p>
                         ${btnHtml}
                     </div>
                 `;
             });
+
+            // Iniciar timers locales para contar regresivamente entre polls
+            startLocalTimers();
+        }
+
+        function startLocalTimers() {
+            clearInterval(window._localTimerInterval);
+            window._localTimerInterval = setInterval(() => {
+                Object.keys(countdowns).forEach(idx => {
+                    const rem  = getCountdownRemaining(idx);
+                    const tot  = countdowns[idx].total_s;
+                    const tEl  = document.getElementById('timer_' + idx);
+                    const bEl  = document.getElementById('timerBar_' + idx);
+                    if (tEl) tEl.innerText = fmtTime(rem);
+                    if (bEl) bEl.style.width = (tot > 0 ? Math.max(0, Math.round((rem / tot) * 100)) : 0) + '%';
+                    if (rem <= 0) clearCountdown(idx);
+                });
+            }, 1000);
         }
 
         function retryPending(id, btnElement) {
             const pending = pendingCommands[id];
             if (!pending) return;
             delete pendingCommands[id];
-            const desiredOn = !!pending.expectedActive;
-            togglePump(id, desiredOn, btnElement);
+            togglePump(id, !!pending.expectedActive, btnElement);
         }
     </script>
 </body>
