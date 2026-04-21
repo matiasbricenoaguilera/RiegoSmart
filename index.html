@@ -35,6 +35,7 @@
         .toggle-btn.btn-danger:hover { background: #dc2626; }
         .cloud-badge { background: var(--accent); padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; vertical-align: top; margin-left: 10px; }
         .clock-container { position: absolute; top: 1rem; right: 1rem; background: var(--card-bg); padding: 0.4rem 0.8rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); text-align: right; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); backdrop-filter: blur(10px); z-index: 10; }
+        #liveClock { font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; font-size: 1.05rem; color: var(--text-main); }
         @media (max-width: 600px) {
             header { padding-top: 1rem; }
             .clock-container { position: static; display: block; margin: 0 auto 0.75rem; text-align: center; width: fit-content; }
@@ -46,8 +47,9 @@
 <body>
     <header>
         <div class="clock-container" style="font-size:0.9rem">
+            <div id="liveClock">--:--:--</div>
             <span style="color:var(--success)">Sincronizado vía Nube ☁️</span><br>
-            <small id="lastRefresh">Última act: --:--:--</small>
+            <small id="lastRefresh" style="color:var(--text-muted)">Última sync: --:--:--</small>
         </div>
         <h1>💧 Riego Smart <span class="cloud-badge">Supabase</span></h1>
         <nav>
@@ -89,7 +91,21 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9udHlxdWlrbHJtZWJ0emN2anluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NzMzMjIsImV4cCI6MjA5MTE0OTMyMn0.rmbcm5s7HdAnljRnVHueq-qU6zgITizaBDVpqyI9-vs';
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        function fmtHms(d) {
+            return d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        }
+        function tickLiveClock() {
+            const el = document.getElementById('liveClock');
+            if (el) el.textContent = fmtHms(new Date());
+        }
+        function setLastCloudSync() {
+            const el = document.getElementById('lastRefresh');
+            if (el) el.textContent = 'Última sync: ' + fmtHms(new Date());
+        }
+
         window.onload = () => {
+            tickLiveClock();
+            setInterval(tickLiveClock, 1000);
             fetchState();
             setInterval(fetchState, 4000);
             fetchIrrigationLog();
@@ -160,8 +176,7 @@
                         : '⏳ Esperando firmware con Open-Meteo — subir nuevo central.ino primero.';
                 }
                 
-                let now = new Date();
-                document.getElementById('lastRefresh').innerText = "Última act: " + now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0') + ":" + now.getSeconds().toString().padStart(2, '0');
+                setLastCloudSync();
             } catch(e) { console.error("Error buscando estado en Supabase", e); }
         }
 

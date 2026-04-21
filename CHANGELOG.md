@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-04-20
+- **`index.html`**: reloj **hora local** a **1 Hz** (`#liveClock`, `setInterval` 1 s); **Última sync** solo al completar cada `fetchState` (~4 s a Supabase).
+
 ## 2026-04-17
 - **Textos alineados con firmware (ventana lluvia ~6h)**: `index.html`, `schedule.html`, `glosario.html` — el panel ya no habla de “24h”; describe la misma lógica que `WEATHER_RAIN_FORECAST_HOURS` en la central (`RiegoSmart-ESP32OFICIAL`).
 - **`index.html`**: envío único de **`utc_offset_sec`** a `system_state` desde la zona horaria del navegador (al primer `fetchState`).
