@@ -198,21 +198,23 @@
 
     <div class="term-card">
         <div class="term-header">
-            <span class="term-name">Lluvia próximas 24h</span>
+            <span class="term-name">Lluvia para decisión de riego (~6h)</span>
             <span class="term-symbol">wx_rain24h</span>
             <span class="term-badge badge-clima">Clima</span>
             <span class="term-unit">mm</span>
         </div>
         <div class="term-desc">
-            Precipitación acumulada prevista para las próximas 24 horas. Se calcula como el
-            <strong>máximo entre la lluvia de hoy y la de mañana</strong> según el pronóstico de Open-Meteo,
-            tomando el peor caso para decidir si conviene regar.
+            Mismo valor que usa el firmware para <strong>cancelar o reducir</strong> riego (<code>rainCancelMm</code>).
+            Es la <strong>suma horaria de precipitación</strong> de Open-Meteo en las próximas
+            <strong>N horas</strong> (por defecto <strong>6</strong>, define <code>WEATHER_RAIN_FORECAST_HOURS</code>).
+            Si hay datos de estación (Meteochile o RedMeteo), se usa
+            <strong>max(observación estación, suma modelo N h)</strong> para no ignorar lluvia ya caída hoy.
         </div>
         <div class="formula-block">
-            <span class="label">Derivación en firmware:</span>
-            wx_rain24h = <span class="hl-y">max</span>(rain_today, rain_tomorrow)<br>
-            <span class="comment">// rain_today y rain_tomorrow vienen del campo</span><br>
-            <span class="comment">// daily=precipitation_sum de Open-Meteo</span>
+            <span class="label">Derivación en firmware (resumen):</span>
+            prono_mm = Σ hourly.precipitation [0..N)<br>
+            wx_rain24h = <span class="hl-y">max</span>(lluvia_estación_mm, prono_mm)  <span class="comment">// modo mixto</span><br>
+            <span class="comment">// JSON al dashboard sigue usando la clave rain_24h por compatibilidad</span>
         </div>
     </div>
 
@@ -588,7 +590,7 @@
         </thead>
         <tbody>
             <tr><td>wx_et0</td><td>Evapotranspiración ref. (Penman-Monteith)</td><td>mm/día</td><td>1–8</td><td>No (Open-Meteo)</td></tr>
-            <tr><td>wx_rain24h</td><td>Lluvia prevista 24h</td><td>mm</td><td>0–50+</td><td>No (Open-Meteo)</td></tr>
+            <tr><td>wx_rain24h</td><td>Lluvia decisión (~6h modelo + estación)</td><td>mm</td><td>0–50+</td><td>No (firmware / Open-Meteo + EMA)</td></tr>
             <tr><td>moisturePct</td><td>Humedad del suelo</td><td>%</td><td>0–100</td><td>No (sensor)</td></tr>
             <tr><td>threshold</td><td>Umbral de humedad</td><td>%</td><td>30–80</td><td>Sí</td></tr>
             <tr><td>soilMaxMm</td><td>Capacidad hídrica del suelo</td><td>mm</td><td>60–220</td><td>Sí</td></tr>

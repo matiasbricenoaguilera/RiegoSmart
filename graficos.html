@@ -75,11 +75,20 @@
 
         window.onload = () => {
             fetchGraphData();
-            // Refrescar gráfica cada 2 minutos
-            setInterval(fetchGraphData, 120000); 
-            // Indicador en vivo más frecuente
-            setInterval(fetchLiveIndicator, 15000);
+            // Misma cadencia que el indicador: antes 2 min dejaba el eje X desactualizado vs "último dato hace Xm"
+            setInterval(fetchGraphData, 20000);
         };
+
+        /** Etiqueta única por fila (evita colisiones solo-HH:MM que mezclaban lecturas nuevas con puntos viejos). */
+        function axisLabelForRow(row) {
+            const d = new Date(row.created_at);
+            const dd = String(d.getDate()).padStart(2, '0');
+            const mo = String(d.getMonth() + 1).padStart(2, '0');
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            const ss = String(d.getSeconds()).padStart(2, '0');
+            return `${dd}/${mo} ${hh}:${mm}:${ss} E${row.estacion}`;
+        }
 
         async function fetchLiveIndicator() {
             const indicator = document.getElementById('liveIndicator');
@@ -115,45 +124,29 @@
             
             try {
                 // Traemos los últimos datos (limit) por estación y luego los ordenamos cronológicamente
+                // Bastantes filas mezcladas (E1/E2); 1 punto en X por fila = sin deduplicar por minuto
+                const maxRows = Math.max(limit * 6, 120);
                 const { data, error } = await supabaseClient
                     .from('sensor_data')
                     .select('*')
                     .order('created_at', { ascending: false })
-                    .limit(limit * 2); // el doble porque hay 2 estaciones mezcladas
+                    .limit(maxRows);
 
                 if (error) throw error;
 
-                // Invertimos para que queden en orden cronológico (izquierda antiguo, derecha nuevo)
+                // Orden cronológico: izquierda = más antiguo, derecha = más reciente
                 data.reverse();
 
                 let labels = [];
                 let dataE1 = [];
                 let dataE2 = [];
 
-                let addedLabels = new Set();
-
-                // Procesamos los datos
                 for (let row of data) {
-                    let d = new Date(row.created_at);
-                    // Formato hora: hh:mm
-                    let timeLabel = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
-                    
-                    if (!addedLabels.has(timeLabel)) {
-                        labels.push(timeLabel);
-                        addedLabels.add(timeLabel);
-                        // Rellenar huecos si en esa hora exacta solo transmitió una estación
-                        dataE1.push(null);
-                        dataE2.push(null);
-                    }
-
-                    // Encontrar el indice donde empujamos la label actual
-                    let idx = labels.indexOf(timeLabel);
-
-                    if (row.estacion == 1) {
-                        dataE1[idx] = row.humedad;
-                    } else if (row.estacion == 2) {
-                        dataE2[idx] = row.humedad;
-                    }
+                    labels.push(axisLabelForRow(row));
+                    const e1 = row.estacion === 1 ? row.humedad : null;
+                    const e2 = row.estacion === 2 ? row.humedad : null;
+                    dataE1.push(e1);
+                    dataE2.push(e2);
                 }
 
                 // Llenar "huecos" con el dato anterior más cercano para evitar líneas cortadas
@@ -213,8 +206,14 @@
                         legend: { labels: { color: '#f8fafc' } }
                     },
                     scales: {
-                        x: { 
-                            ticks: { color: '#94a3b8' },
+                        x: {
+                            ticks: {
+                                color: '#94a3b8',
+                                maxRotation: 55,
+                                minRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 14
+                            },
                             grid: { color: 'rgba(255,255,255,0.05)' }
                         },
                         y: {

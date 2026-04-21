@@ -106,6 +106,20 @@
         let activeProg = 0;
         let systemState = { id: 1, active_program: 0, pumps: [] };
 
+        /** Segundos al este de UTC (incluye horario de verano actual). Igual criterio que el reloj del sistema en el navegador. */
+        function browserUtcOffsetSec() {
+            return -Math.round(new Date().getTimezoneOffset() * 60);
+        }
+
+        async function pushBrowserTimezoneToCloud() {
+            const utc_offset_sec = browserUtcOffsetSec();
+            const { error } = await supabaseClient
+                .from('system_state')
+                .update({ utc_offset_sec })
+                .eq('id', 1);
+            if (error) console.warn('utc_offset_sec:', error.message);
+        }
+
         function defaultProgram(idx) {
             return {
                 startHour: 7, startMinute: idx * 5,
@@ -149,6 +163,7 @@
                 if (error) throw error;
                 systemState = normalizeState(data || { id: 1, active_program: 0, pumps: [] });
                 activeProg = systemState.active_program;
+                await pushBrowserTimezoneToCloud();
 
                 const pumpsForProgram = systemState.pumps.map((p, idx) => {
                     const cfg = p.programs[editingProg] || defaultProgram(idx);
@@ -219,7 +234,7 @@
         async function activateThisProg() {
             const { error } = await supabaseClient
                 .from('system_state')
-                .update({ active_program: editingProg })
+                .update({ active_program: editingProg, utc_offset_sec: browserUtcOffsetSec() })
                 .eq('id', 1);
             if (!error) {
                 activeProg = editingProg;
@@ -296,7 +311,7 @@
                                 </div>
                                 <div>
                                     <label>Lluvia cancela (mm)</label>
-                                    <small style="color:var(--text-muted); display:block;">pronóstico 24h que anula riego</small>
+                                    <small style="color:var(--text-muted); display:block;">lluvia esperada (~6h modelo + estación) que anula riego</small>
                                     <input type="number" id="rain_${idx}" value="${p.rainCancelMm ?? 5.0}" step="0.5" min="0" max="100" style="width:90px">
                                 </div>
                                 <div>
@@ -358,7 +373,7 @@
 
             const { error } = await supabaseClient
                 .from('system_state')
-                .update({ pumps })
+                .update({ pumps, utc_offset_sec: browserUtcOffsetSec() })
                 .eq('id', 1);
             if (!error) {
                 systemState.pumps = pumps;  // actualizar cache local
