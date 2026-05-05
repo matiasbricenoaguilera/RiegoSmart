@@ -1,0 +1,5 @@
+# Proyecto Supabase local / despliegue de funciones. Ajusta project_id si usas CLI vinculado.
+project_id = "ontyquiklrmebtzcvjyn"
+
+[functions.sync-weather]
+verify_jwt = true
