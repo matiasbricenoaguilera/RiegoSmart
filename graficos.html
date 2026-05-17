@@ -22,8 +22,9 @@
         a.btn-nav:hover, a.btn-nav.active { background: var(--accent); border-color: var(--accent); }
         .container { max-width: 1000px; margin: 1.5rem auto; padding: 0 1rem; }
         .card { background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.5rem; text-align: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 2rem; }
-        .chart-container { position: relative; height: 400px; width: 100%; }
-        select { padding: 8px; border-radius: 8px; background: #1e293b; color: white; border: 1px solid #3b82f6; margin-bottom: 20px; min-height: 38px; }
+        .chart-container { position: relative; height: 360px; width: 100%; max-width: 100%; }
+        select { padding: 8px; border-radius: 8px; background: #1e293b; color: white; border: 1px solid #3b82f6; margin-bottom: 12px; min-height: 38px; max-width: 100%; }
+        .range-hint { color: var(--text-muted); font-size: 0.8rem; margin-bottom: 14px; line-height: 1.35; }
         @media (max-width: 600px) {
             .chart-container { height: 260px; }
             .card { padding: 1rem; }
@@ -47,12 +48,16 @@
             <p style="color:var(--text-muted); margin-bottom:15px; font-size: 0.9em;">
                 Evolución de las zonas Antejardín (E1) y Huerta (E2)
             </p>
-            
+            <p class="range-hint" id="rangeHint">
+                Por defecto: últimas <strong>6 horas</strong>. Si hay muchas filas, se muestran hasta <strong>240 puntos</strong> repartidos en el intervalo para que el eje X sea legible.
+            </p>
             <div style="text-align: right;">
                 <select id="timeRange" onchange="fetchGraphData()">
-                    <option value="20">Últimas 20 lecturas</option>
-                    <option value="50" selected>Últimas 50 lecturas</option>
-                    <option value="100">Últimas 100 lecturas</option>
+                    <option value="hours:6" selected>Últimas 6 horas</option>
+                    <option value="hours:12">Últimas 12 horas</option>
+                    <option value="hours:24">Últimas 24 horas</option>
+                    <option value="rows:50">Últimas 50 lecturas (mezcla E1/E2)</option>
+                    <option value="rows:100">Últimas 100 lecturas (mezcla E1/E2)</option>
                 </select>
             </div>
 
@@ -72,6 +77,10 @@
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let myChart = null;
+        /** Máximo de puntos en el eje X tras mezclar E1/E2 (legibilidad). */
+        const MAX_CHART_POINTS = 240;
+        /** Máximo de filas a pedir a Supabase en modo por horas (PostgREST suele cap ~1000). */
+        const MAX_ROWS_FETCH = 1000;
 
         window.onload = () => {
             fetchGraphData();
@@ -118,24 +127,55 @@
             }
         }
 
+        /** Reduce filas conservando orden temporal (índices equidistantes). */
+        function downsampleRows(rows, maxN) {
+            if (!rows || rows.length <= maxN) return rows;
+            const out = [];
+            const last = rows.length - 1;
+            for (let k = 0; k < maxN; k++) {
+                const idx = Math.round((k * last) / (maxN - 1));
+                out.push(rows[idx]);
+            }
+            return out;
+        }
+
         async function fetchGraphData() {
             document.getElementById('loadingMsg').style.display = 'block';
-            let limit = parseInt(document.getElementById('timeRange').value);
-            
+            const mode = document.getElementById('timeRange').value;
+            const hint = document.getElementById('rangeHint');
+
             try {
-                // Traemos los últimos datos (limit) por estación y luego los ordenamos cronológicamente
-                // Bastantes filas mezcladas (E1/E2); 1 punto en X por fila = sin deduplicar por minuto
-                const maxRows = Math.max(limit * 6, 120);
-                const { data, error } = await supabaseClient
-                    .from('sensor_data')
-                    .select('*')
-                    .order('created_at', { ascending: false })
-                    .limit(maxRows);
+                let data = [];
+                const { data: rows, error } = await (async () => {
+                    if (mode.startsWith('hours:')) {
+                        const hours = parseInt(mode.split(':')[1], 10) || 6;
+                        const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+                        hint.innerHTML =
+                            `Ventana: últimas <strong>${hours} h</strong> desde Supabase. Si hay más de ${MAX_CHART_POINTS} puntos en el tiempo, se <strong>submuestrean</strong> para el gráfico (la tabla en nube sigue completa).`;
+                        return supabaseClient
+                            .from('sensor_data')
+                            .select('*')
+                            .gte('created_at', since)
+                            .order('created_at', { ascending: true })
+                            .limit(MAX_ROWS_FETCH);
+                    }
+                    const limit = parseInt(mode.split(':')[1], 10) || 50;
+                    hint.innerHTML =
+                        `Modo por <strong>número de filas</strong> (${limit} más recientes, mezcla estaciones). Puede verse muy denso; preferir <em>Últimas 6 horas</em> para leer mejor.`;
+                    const maxRows = Math.max(limit * 6, 120);
+                    return supabaseClient
+                        .from('sensor_data')
+                        .select('*')
+                        .order('created_at', { ascending: false })
+                        .limit(maxRows);
+                })();
 
                 if (error) throw error;
+                data = rows || [];
+                if (mode.startsWith('rows:')) data.reverse();
 
-                // Orden cronológico: izquierda = más antiguo, derecha = más reciente
-                data.reverse();
+                if (data.length > MAX_CHART_POINTS)
+                    data = downsampleRows(data, MAX_CHART_POINTS);
 
                 let labels = [];
                 let dataE1 = [];
@@ -184,18 +224,22 @@
                             data: dataE1,
                             borderColor: '#10b981', // success color
                             backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                            borderWidth: 3,
+                            borderWidth: 2,
+                            pointRadius: 2,
+                            pointHoverRadius: 5,
                             fill: true,
-                            tension: 0.4 // Suaviza la curva
+                            tension: 0.15
                         },
                         {
                             label: 'Huerta (Promedio E2)',
                             data: dataE2,
                             borderColor: '#3b82f6', // accent color
                             backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            borderWidth: 3,
+                            borderWidth: 2,
+                            pointRadius: 2,
+                            pointHoverRadius: 5,
                             fill: true,
-                            tension: 0.4
+                            tension: 0.15
                         }
                     ]
                 },
@@ -209,10 +253,11 @@
                         x: {
                             ticks: {
                                 color: '#94a3b8',
-                                maxRotation: 55,
+                                maxRotation: 45,
                                 minRotation: 0,
                                 autoSkip: true,
-                                maxTicksLimit: 14
+                                maxTicksLimit: 10,
+                                font: { size: 10 }
                             },
                             grid: { color: 'rgba(255,255,255,0.05)' }
                         },

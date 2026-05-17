@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-04-21
+- **`graficos.html`**: vista por **tiempo** (6 h por defecto, 12 h, 24 h) con `created_at >= …`; máx. **240 puntos** en el gráfico (submuestreo uniforme si hay muchas filas) y hasta **1000** filas desde Supabase. Menos tensión/ grosor de línea y menos etiquetas en X para legibilidad. Opciones legacy “últimas N lecturas” conservadas.
+
 ## 2026-04-20 (central – ventana riego ±2 min y OLED 1 Hz)
 - **`SCHED_EVAL_WINDOW_MIN`**: por defecto **2** (antes ±5 min): evaluación de riego en **T−2..T+2** respecto al horario programado; `nextEvalHHMM` y textos de `SIN_LECTURA` usan el mismo valor.
 - **OLED**: refresco **1 s** en modo normal (`OLED_NORMAL_REFRESH_MS`) y en salvapantallas/reloj (`OLED_SLEEP_CLOCK_REFRESH_MS`) para ver el **segundo** de forma continua en la línea de hora.
