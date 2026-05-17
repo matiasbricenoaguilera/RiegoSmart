@@ -2,6 +2,7 @@
 
 ## 2026-04-21
 - **`graficos.html`**: vista por **tiempo** (6 h por defecto, 12 h, 24 h) con `created_at >= …`; máx. **240 puntos** en el gráfico (submuestreo uniforme si hay muchas filas) y hasta **1000** filas desde Supabase. Menos tensión/ grosor de línea y menos etiquetas en X para legibilidad. Opciones legacy “últimas N lecturas” conservadas.
+- **`graficos.html`**: **sin relleno** entre muestras (`null` donde no hay fila para esa estación); `spanGaps: false`, área bajo curva desactivada (`fill: false`) para ver **cortes** entre datos reales.
 
 ## 2026-04-20 (central – ventana riego ±2 min y OLED 1 Hz)
 - **`SCHED_EVAL_WINDOW_MIN`**: por defecto **2** (antes ±5 min): evaluación de riego en **T−2..T+2** respecto al horario programado; `nextEvalHHMM` y textos de `SIN_LECTURA` usan el mismo valor.

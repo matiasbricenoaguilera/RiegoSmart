@@ -49,7 +49,7 @@
                 Evolución de las zonas Antejardín (E1) y Huerta (E2)
             </p>
             <p class="range-hint" id="rangeHint">
-                Por defecto: últimas <strong>6 horas</strong>. Si hay muchas filas, se muestran hasta <strong>240 puntos</strong> repartidos en el intervalo para que el eje X sea legible.
+                Por defecto: últimas <strong>6 horas</strong>. Cada punto es una <strong>fila real</strong> en la nube; si una estación no midió en ese instante, la línea se <strong>corta</strong> (hueco). Hasta <strong>240 puntos</strong> en el eje temporal si hay muchas filas (submuestreo).
             </p>
             <div style="text-align: right;">
                 <select id="timeRange" onchange="fetchGraphData()">
@@ -151,7 +151,7 @@
                         const hours = parseInt(mode.split(':')[1], 10) || 6;
                         const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
                         hint.innerHTML =
-                            `Ventana: últimas <strong>${hours} h</strong> desde Supabase. Si hay más de ${MAX_CHART_POINTS} puntos en el tiempo, se <strong>submuestrean</strong> para el gráfico (la tabla en nube sigue completa).`;
+                            `Ventana: últimas <strong>${hours} h</strong>. Solo puntos con fila en Supabase; <strong>sin relleno</strong> entre muestras (huecos = sin dato para esa estación en ese instante). Submuestreo si hay más de ${MAX_CHART_POINTS} filas.`;
                         return supabaseClient
                             .from('sensor_data')
                             .select('*')
@@ -161,7 +161,7 @@
                     }
                     const limit = parseInt(mode.split(':')[1], 10) || 50;
                     hint.innerHTML =
-                        `Modo por <strong>número de filas</strong> (${limit} más recientes, mezcla estaciones). Puede verse muy denso; preferir <em>Últimas 6 horas</em> para leer mejor.`;
+                        `Últimas <strong>${limit}</strong> filas (mezcla E1/E2). <strong>Sin relleno</strong>: huecos si no hay medición para esa estación. Preferir <em>Últimas 6 horas</em> para leer mejor.`;
                     const maxRows = Math.max(limit * 6, 120);
                     return supabaseClient
                         .from('sensor_data')
@@ -187,13 +187,6 @@
                     const e2 = row.estacion === 2 ? row.humedad : null;
                     dataE1.push(e1);
                     dataE2.push(e2);
-                }
-
-                // Llenar "huecos" con el dato anterior más cercano para evitar líneas cortadas
-                let last1 = null; let last2 = null;
-                for (let i = 0; i < labels.length; i++) {
-                    if (dataE1[i] !== null) last1 = dataE1[i]; else dataE1[i] = last1;
-                    if (dataE2[i] !== null) last2 = dataE2[i]; else dataE2[i] = last2;
                 }
 
                 renderChart(labels, dataE1, dataE2);
@@ -225,10 +218,11 @@
                             borderColor: '#10b981', // success color
                             backgroundColor: 'rgba(16, 185, 129, 0.1)',
                             borderWidth: 2,
-                            pointRadius: 2,
-                            pointHoverRadius: 5,
-                            fill: true,
-                            tension: 0.15
+                            pointRadius: 3,
+                            pointHoverRadius: 6,
+                            spanGaps: false,
+                            fill: false,
+                            tension: 0.1
                         },
                         {
                             label: 'Huerta (Promedio E2)',
@@ -236,10 +230,11 @@
                             borderColor: '#3b82f6', // accent color
                             backgroundColor: 'rgba(59, 130, 246, 0.1)',
                             borderWidth: 2,
-                            pointRadius: 2,
-                            pointHoverRadius: 5,
-                            fill: true,
-                            tension: 0.15
+                            pointRadius: 3,
+                            pointHoverRadius: 6,
+                            spanGaps: false,
+                            fill: false,
+                            tension: 0.1
                         }
                     ]
                 },
