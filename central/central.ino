@@ -2026,6 +2026,11 @@ void enforceSafety() {
 void setupPins() { for (uint8_t i = 0; i < ZONE_COUNT; i++) { pinMode(ZONE_PINS[i], OUTPUT); digitalWrite(ZONE_PINS[i], LOW); zones[i] = {false, 0, 0, 0}; } }  // OUTPUT LOW: evita gate flotante (MOSFET) tras boot/WDT
 void beginWiFi() {
   WiFi.mode(WIFI_AP_STA);
+  // Limitar TX a 8.5 dBm durante scan/asociación inicial.
+  // La radio a 19.5 dBm (defecto) consume ~240 mA en pico; con alimentación USB
+  // débil eso produce un sag de tensión que dispara el Interrupt WDT (TG1).
+  // Se sube a 17 dBm en maintainConnectivity() tras conectar.
+  esp_wifi_set_max_tx_power(34);  // 34 × 0.25 dBm = 8.5 dBm (~100 mA pico)
   Serial.print("MAC STA Central: "); Serial.println(WiFi.macAddress());
   if (!wifiBeginDone) {
     // Tras INT_WDT el periférico WiFi queda en estado indefinido; la espera permite
@@ -2101,6 +2106,7 @@ void setup() {
   esp_task_wdt_init(WDT_TIMEOUT_S, true);
   esp_task_wdt_add(NULL);
   setupPins(); initDefaults(); loadSchedules(); loadCalibration(); beginWiFi(); delay(120); startWebServer();
+  esp_task_wdt_reset();  // alimentar WDT tras inicializaciones largas (NVS, WiFi, WebServer)
 #if ENABLE_OLED
   oledSetup();
 #endif
