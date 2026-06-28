@@ -11,6 +11,7 @@
 #include "soc/rtc_cntl_reg.h"
 #include "esp_task_wdt.h"
 #include "esp_system.h"
+#include "nvs_flash.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -2085,6 +2086,14 @@ void setup() {
   // Watchdog: reinicia automáticamente si loop() se bloquea más de WDT_TIMEOUT_S
   esp_task_wdt_init(WDT_TIMEOUT_S, true);
   esp_task_wdt_add(NULL);
+  // Recovery NVS: si la partición está corrupta el framework la borra y reinicia antes de
+  // que Preferences.begin() la acceda, evitando el panic → rst:0x3 en startup.
+  { esp_err_t r = nvs_flash_init();
+    if (r == ESP_ERR_NVS_NO_FREE_PAGES || r == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+      Serial.println("[NVS] Particion corrupta detectada — borrando y reiniciando NVS.");
+      nvs_flash_erase(); nvs_flash_init();
+    }
+  }
   setupPins(); initDefaults(); loadSchedules(); loadCalibration(); beginWiFi(); delay(120); startWebServer();
   esp_task_wdt_reset();  // alimentar WDT tras inicializaciones largas (NVS, WiFi, WebServer)
 #if ENABLE_OLED
