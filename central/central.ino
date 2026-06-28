@@ -2041,7 +2041,6 @@ void beginWiFi() {
 void setupArduinoOta() {
   if (otaReady) return;
   ArduinoOTA.setHostname("riegosmart-central");
-  ArduinoOTA.setPassword(LOCAL_PASS);
 
   ArduinoOTA.onStart([]() {
     esp_task_wdt_delete(NULL);  // deshabilitar WDT; el sistema reinicia tras OTA
