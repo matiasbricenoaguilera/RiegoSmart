@@ -194,8 +194,6 @@ uint32_t lastStationSeenAt[ZONE_COUNT] = {0};  // millis() de última recepción
 uint32_t lastSensorPacketAt[ZONE_COUNT][SENSORS_PER_STATION] = {{0}};  // último paquete por sonda (para descartar obsoletos)
 bool moisturePctValid[ZONE_COUNT] = {false, false, false, false, false};
 bool espNowReady = false, wifiBeginDone = false, ntpConfigured = false, pumpPinsArmed = false, otaReady = false;
-// Protege arrays de sensores compartidos entre el callback ESP-NOW (escritura) y loop() (lectura).
-static portMUX_TYPE sensorMux = portMUX_INITIALIZER_UNLOCKED;
 // Solo estaciones con paquete ESP-NOW nuevo desde el último POST a sensor_data (evita duplicar puntos en el gráfico)
 bool sensorDataPushPending[ZONE_COUNT] = {false, false, false, false, false};
 bool statusPushUrgent = false;  // push inmediato cuando cambia estado de bomba
@@ -296,13 +294,11 @@ static bool sensorSampleFresh(uint8_t st, uint8_t sid) {
 void recalcStationMoisture(uint8_t st) {
   uint32_t sumPct = 0;
   uint8_t count = 0;
-  portENTER_CRITICAL(&sensorMux);  // lecturas de sensorRaw/lastSensorPacketAt vs callback ESP-NOW
   for (uint8_t i = 0; i < SENSORS_PER_STATION; i++) {
     if (!sensorSampleFresh(st, i)) continue;
     sumPct += rawToPercent(sensorRaw[st][i], calDry[st][i], calWet[st][i]);
     count++;
   }
-  portEXIT_CRITICAL(&sensorMux);
   if (count == 0) {
     moisturePct[st] = 0;
     moisturePctValid[st] = false;
@@ -869,7 +865,6 @@ void startWebServer() {
 void applySensorSample(uint8_t stationID, uint8_t sensorID, uint16_t raw, uint16_t batteryMv) {
   if (stationID < 1 || stationID > ZONE_COUNT || sensorID < 1 || sensorID > SENSORS_PER_STATION) return;
   uint8_t st = stationID - 1, sid = sensorID - 1;
-  portENTER_CRITICAL(&sensorMux);
   sensorRaw[st][sid] = raw;
   sensorSeen[st][sid] = true;
   if (batteryMv > 0) stationBatteryMv[st] = batteryMv;
@@ -877,8 +872,7 @@ void applySensorSample(uint8_t stationID, uint8_t sensorID, uint16_t raw, uint16
   lastStationSeenAt[st] = millis();
   sensorDataPushPending[st] = true;
   lastEspNowAt = millis();
-  portEXIT_CRITICAL(&sensorMux);
-  recalcStationMoisture(st);  // fuera del lock: adquiere sensorMux sin anidamiento
+  recalcStationMoisture(st);
   Serial.printf("ESP-NOW st=%u s=%u raw=%u hum=%u%% valid=%s batt=%umV\n", stationID, sensorID, raw, moisturePct[st],
                 moisturePctValid[st] ? "si" : "no", stationBatteryMv[st]);
 }
@@ -1125,12 +1119,10 @@ void pushStatusToCloud() {
     d["hum"]            = liveHum;
     d["hum_valid"]      = humValid;
     JsonArray psa = d.createNestedArray("sensor_age_s");
-    portENTER_CRITICAL(&sensorMux);  // lecturas de lastSensorPacketAt vs callback ESP-NOW
     for (uint8_t sid = 0; sid < SENSORS_PER_STATION; sid++) {
       uint32_t lp = lastSensorPacketAt[stIdx][sid];
       psa.add((lp == 0) ? 0xFFFFu : (uint32_t)((now - lp) / 1000UL));
     }
-    portEXIT_CRITICAL(&sensorMux);
     d["thr"]            = cfg.threshold;
     d["min"]            = decisions[i].minutes;
     d["reason"]         = decisions[i].reason.length() ? decisions[i].reason : "Sincronizando";
