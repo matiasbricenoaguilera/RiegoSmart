@@ -2,7 +2,6 @@
 #include <WebServer.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include <ArduinoOTA.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <Preferences.h>
@@ -193,7 +192,7 @@ uint32_t bootAt = 0, lastEspNowAt = 0, lastStatusPushAt = 0, lastWiFiAttemptAt =
 uint32_t lastStationSeenAt[ZONE_COUNT] = {0};  // millis() de última recepción por estación (índice = stationID-1)
 uint32_t lastSensorPacketAt[ZONE_COUNT][SENSORS_PER_STATION] = {{0}};  // último paquete por sonda (para descartar obsoletos)
 bool moisturePctValid[ZONE_COUNT] = {false, false, false, false, false};
-bool espNowReady = false, wifiBeginDone = false, ntpConfigured = false, pumpPinsArmed = false, otaReady = false, wifiPowerConfigured = false;
+bool espNowReady = false, wifiBeginDone = false, ntpConfigured = false, pumpPinsArmed = false, wifiPowerConfigured = false;
 // Solo estaciones con paquete ESP-NOW nuevo desde el último POST a sensor_data (evita duplicar puntos en el gráfico)
 bool sensorDataPushPending[ZONE_COUNT] = {false, false, false, false, false};
 bool statusPushUrgent = false;  // push inmediato cuando cambia estado de bomba
@@ -2043,66 +2042,6 @@ void beginWiFi() {
     Serial.println("WiFi begin solicitado.");
   }
 }
-void setupArduinoOta() {
-  if (otaReady) return;
-  ArduinoOTA.setHostname("riegosmart-central");
-
-  ArduinoOTA.onStart([]() {
-    esp_task_wdt_delete(NULL);  // deshabilitar WDT; el sistema reinicia tras OTA
-    for (uint8_t i = 0; i < ZONE_COUNT; i++) stopZone(i, "OTA");
-    Serial.println("[OTA] Inicio de actualizacion");
-#if ENABLE_OLED
-    if (oledOk) {
-      oled.firstPage();
-      do {
-        oled.setFont(u8g2_font_6x10_tf);
-        oled.drawStr(0, 20, "OTA: actualizando...");
-      } while (oled.nextPage());
-    }
-#endif
-  });
-
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    uint8_t pct = (uint8_t)(progress * 100 / total);
-    Serial.printf("[OTA] %u%%\r", pct);
-#if ENABLE_OLED
-    if (oledOk) {
-      oled.firstPage();
-      do {
-        oled.setFont(u8g2_font_6x10_tf);
-        char buf[24];
-        snprintf(buf, sizeof(buf), "OTA: %u%%", pct);
-        oled.drawStr(0, 20, buf);
-        oled.drawFrame(0, 30, 128, 12);
-        oled.drawBox(0, 30, (uint8_t)(128u * pct / 100u), 12);
-      } while (oled.nextPage());
-    }
-#endif
-  });
-
-  ArduinoOTA.onEnd([]() {
-    Serial.println("\n[OTA] Completado. Reiniciando...");
-#if ENABLE_OLED
-    if (oledOk) {
-      oled.firstPage();
-      do {
-        oled.setFont(u8g2_font_6x10_tf);
-        oled.drawStr(0, 20, "OTA: listo!");
-        oled.drawStr(0, 35, "Reiniciando...");
-      } while (oled.nextPage());
-    }
-#endif
-  });
-
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("[OTA] Error %u\n", (unsigned)error);
-    esp_task_wdt_add(NULL);  // re-activar WDT si la OTA falla
-  });
-
-  ArduinoOTA.begin();
-  otaReady = true;
-  Serial.println("[OTA] ArduinoOTA listo — hostname: riegosmart-central.local");
-}
 
 void maintainConnectivity() {
   uint32_t now = millis(); wl_status_t st = WiFi.status();
@@ -2111,7 +2050,6 @@ void maintainConnectivity() {
   if (st == WL_CONNECTED && !wifiPowerConfigured) { WiFi.setSleep(false); WiFi.setTxPower(WIFI_POWER_17dBm); wifiPowerConfigured = true; }
   // ESP-NOW en cuanto hay STA (no esperar STARTUP_STAGGER): el satélite envía al arranque y luego deep sleep 30 min.
   if (st == WL_CONNECTED && !espNowReady) setupEspNow();
-  if (st == WL_CONNECTED && !otaReady) setupArduinoOta();
   if (st == WL_CONNECTED && !ntpConfigured) {
     int32_t savedOff = loadPrefsUtcOffsetSec();
     if (savedOff != INT32_MAX && savedOff >= -46800 && savedOff <= 46800) {
@@ -2196,7 +2134,6 @@ void loop() {
   }
 
   server.handleClient();
-  if (otaReady) ArduinoOTA.handle();
   maintainConnectivity();
   enforceSafety();
   predictiveCheck();
@@ -2230,7 +2167,6 @@ void loop() {
       WiFi.begin(WIFI_SSID, WIFI_PASS);
       // setSleep/setTxPower se aplicarán en la próxima reconexión vía wifiPowerConfigured.
       ntpConfigured = false;        // forzar reconfiguración NTP al reconectar
-      otaReady = false;             // mDNS/UDP quedan inválidos tras disconnect(true)
       wifiPowerConfigured = false;  // re-aplicar power config al reconectar
       wifiDownSince = now;
     }
