@@ -2035,10 +2035,16 @@ void enforceSafety() {
 void setupPins() { for (uint8_t i = 0; i < ZONE_COUNT; i++) { pinMode(ZONE_PINS[i], OUTPUT); digitalWrite(ZONE_PINS[i], LOW); zones[i] = {false, 0, 0, 0}; } }  // OUTPUT LOW: evita gate flotante (MOSFET) tras boot/WDT
 void beginWiFi() {
   WiFi.mode(WIFI_AP_STA);
-  WiFi.setSleep(false);          // modem sleep causa pérdida silenciosa de beacons → desconexión
-  WiFi.setTxPower(WIFI_POWER_17dBm);  // 8.5 dBm era demasiado bajo; brownout cubierto por USE_BROWNOUT_WORKAROUND
   Serial.print("MAC STA Central: "); Serial.println(WiFi.macAddress());
-  if (!wifiBeginDone) { WiFi.begin(WIFI_SSID, WIFI_PASS); wifiBeginDone = true; lastWiFiAttemptAt = millis(); Serial.println("WiFi begin solicitado."); }
+  if (!wifiBeginDone) {
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    // setSleep/setTxPower DESPUÉS de begin(): el driver debe estar inicializado primero.
+    // Llamarlos antes causaba TG1WDT_SYS_RESET (interrupt WDT) durante la init del stack.
+    WiFi.setSleep(false);
+    WiFi.setTxPower(WIFI_POWER_17dBm);
+    wifiBeginDone = true; lastWiFiAttemptAt = millis();
+    Serial.println("WiFi begin solicitado.");
+  }
 }
 void setupArduinoOta() {
   if (otaReady) return;
@@ -2223,9 +2229,9 @@ void loop() {
       WiFi.disconnect(true);
       delay(500);
       WiFi.mode(WIFI_AP_STA);
+      WiFi.begin(WIFI_SSID, WIFI_PASS);
       WiFi.setSleep(false);
       WiFi.setTxPower(WIFI_POWER_17dBm);
-      WiFi.begin(WIFI_SSID, WIFI_PASS);
       ntpConfigured = false;  // forzar reconfiguración NTP al reconectar
       otaReady = false;       // mDNS/UDP quedan inválidos tras disconnect(true)
       wifiDownSince = now;
