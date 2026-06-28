@@ -192,7 +192,7 @@ uint32_t bootAt = 0, lastEspNowAt = 0, lastStatusPushAt = 0, lastWiFiAttemptAt =
 uint32_t lastStationSeenAt[ZONE_COUNT] = {0};  // millis() de última recepción por estación (índice = stationID-1)
 uint32_t lastSensorPacketAt[ZONE_COUNT][SENSORS_PER_STATION] = {{0}};  // último paquete por sonda (para descartar obsoletos)
 bool moisturePctValid[ZONE_COUNT] = {false, false, false, false, false};
-bool espNowReady = false, wifiBeginDone = false, ntpConfigured = false, pumpPinsArmed = false, wifiPowerConfigured = false;
+bool espNowReady = false, wifiBeginDone = false, ntpConfigured = false, pumpPinsArmed = false;
 // Solo estaciones con paquete ESP-NOW nuevo desde el último POST a sensor_data (evita duplicar puntos en el gráfico)
 bool sensorDataPushPending[ZONE_COUNT] = {false, false, false, false, false};
 bool statusPushUrgent = false;  // push inmediato cuando cambia estado de bomba
@@ -2025,34 +2025,14 @@ void enforceSafety() {
 // --------------------------- Boot/network ---------------------------
 void setupPins() { for (uint8_t i = 0; i < ZONE_COUNT; i++) { pinMode(ZONE_PINS[i], OUTPUT); digitalWrite(ZONE_PINS[i], LOW); zones[i] = {false, 0, 0, 0}; } }  // OUTPUT LOW: evita gate flotante (MOSFET) tras boot/WDT
 void beginWiFi() {
-  WiFi.mode(WIFI_AP_STA);
-  // Limitar TX a 8.5 dBm durante scan/asociación inicial.
-  // La radio a 19.5 dBm (defecto) consume ~240 mA en pico; con alimentación USB
-  // débil eso produce un sag de tensión que dispara el Interrupt WDT (TG1).
-  // Se sube a 17 dBm en maintainConnectivity() tras conectar.
-  esp_wifi_set_max_tx_power(34);  // 34 × 0.25 dBm = 8.5 dBm (~100 mA pico)
+  WiFi.mode(WIFI_AP_STA); WiFi.setSleep(true); WiFi.setTxPower(WIFI_POWER_8_5dBm);
   Serial.print("MAC STA Central: "); Serial.println(WiFi.macAddress());
-  if (!wifiBeginDone) {
-    // Tras INT_WDT el periférico WiFi queda en estado indefinido; la espera permite
-    // que el hardware se estabilice antes de reiniciar el stack — evita otro TG1WDT.
-    esp_reset_reason_t rr = esp_reset_reason();
-    if (rr == ESP_RST_INT_WDT || rr == ESP_RST_TASK_WDT) {
-      Serial.println("[WIFI] WDT reset: esperando 1.5s para estabilizar periférico...");
-      delay(1500);
-    }
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
-    // setSleep/setTxPower se aplican en maintainConnectivity() una vez que WiFi está
-    // conectado; llamarlos durante la init del stack causa TG1WDT_SYS_RESET.
-    wifiBeginDone = true; lastWiFiAttemptAt = millis();
-    Serial.println("WiFi begin solicitado.");
-  }
+  if (!wifiBeginDone) { WiFi.begin(WIFI_SSID, WIFI_PASS); wifiBeginDone = true; lastWiFiAttemptAt = millis(); Serial.println("WiFi begin solicitado."); }
 }
 
 void maintainConnectivity() {
   uint32_t now = millis(); wl_status_t st = WiFi.status();
   if (st != WL_CONNECTED && now - lastWiFiAttemptAt >= WIFI_RETRY_INTERVAL_MS) { WiFi.disconnect(); WiFi.begin(WIFI_SSID, WIFI_PASS); lastWiFiAttemptAt = now; }
-  // setSleep/setTxPower se aplican aquí, una sola vez, cuando el stack ya está estable.
-  if (st == WL_CONNECTED && !wifiPowerConfigured) { WiFi.setSleep(false); WiFi.setTxPower(WIFI_POWER_17dBm); wifiPowerConfigured = true; }
   // ESP-NOW en cuanto hay STA (no esperar STARTUP_STAGGER): el satélite envía al arranque y luego deep sleep 30 min.
   if (st == WL_CONNECTED && !espNowReady) setupEspNow();
   if (st == WL_CONNECTED && !ntpConfigured) {
@@ -2163,26 +2143,11 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED) {
     if (wifiDownSince == 0) wifiDownSince = now;
 
-    // Reinicio completo del stack WiFi a los 3 min: disconnect(true) borra el modo,
-    // hay que reestablecer WIFI_AP_STA, sleep y potencia antes de begin().
     if (now - wifiDownSince > 3UL * 60UL * 1000UL) {
       Serial.println("[WIFI] Desconectado >3min, forzando reinicio WiFi...");
-      WiFi.disconnect(true);
-      delay(500);
-      WiFi.mode(WIFI_AP_STA);
-      WiFi.begin(WIFI_SSID, WIFI_PASS);
-      // setSleep/setTxPower se aplicarán en la próxima reconexión vía wifiPowerConfigured.
-      ntpConfigured = false;        // forzar reconfiguración NTP al reconectar
-      wifiPowerConfigured = false;  // re-aplicar power config al reconectar
+      WiFi.disconnect(true); delay(500); WiFi.mode(WIFI_AP_STA); WiFi.begin(WIFI_SSID, WIFI_PASS);
+      ntpConfigured = false;
       wifiDownSince = now;
-    }
-
-    // Si el stack WiFi quedó corrupto, WiFi.begin() no alcanza. esp_restart() como
-    // último recurso: equivale al reinicio manual que el usuario hacía físicamente.
-    if (now - wifiDownSince > 10UL * 60UL * 1000UL) {
-      Serial.println("[WIFI] Sin WiFi >10min tras hard-reset, reiniciando ESP32...");
-      delay(200);
-      esp_restart();
     }
 
     return;
