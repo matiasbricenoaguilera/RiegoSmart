@@ -80,6 +80,14 @@
         </div>
     </div>
 
+    <!-- Estación meteorológica local IFA-UV -->
+    <div class="container" style="margin-top:0; padding-bottom:1rem;">
+        <h2 style="text-align:center; margin-bottom:1rem; font-size:1.1rem; color:var(--text-muted);">🌡 Estación Meteorológica Local</h2>
+        <div id="wlPanel" style="background:var(--card-bg); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:1.25rem; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);">
+            <p style="text-align:center; color:var(--text-muted); font-size:0.85rem;">⏳ Cargando datos de la estación...</p>
+        </div>
+    </div>
+
     <!-- Historial de riegos -->
     <div class="container" style="margin-top:1rem; padding-bottom:3rem;">
         <h2 style="text-align:center; margin-bottom:1.25rem; font-size:1.1rem; color:var(--text-muted);">📋 Historial de Riegos</h2>
@@ -109,7 +117,9 @@
             fetchState();
             setInterval(fetchState, 4000);
             fetchIrrigationLog();
-            setInterval(fetchIrrigationLog, 60000);  // refrescar cada 60s
+            setInterval(fetchIrrigationLog, 60000);
+            fetchWLStation();
+            setInterval(fetchWLStation, 5 * 60 * 1000); // cada 5 min
         };
 
         let pendingCommands = {}; // {pumpId: {time, expectedActive}}
@@ -426,6 +436,189 @@
             togglePump(id, !!pending.expectedActive, btnElement);
         }
 
+
+        // ──────────────────────────────────────────────────────────────
+        // Estación IFA-UV "La Reserva UV" — Villa Alemana (WeatherLink)
+        // ──────────────────────────────────────────────────────────────
+        const WL_DATA_URL  = 'https://www.weatherlink.com/embeddablePage/getData/745c3c317c794f5a81f5a777bde785b5';
+        const WL_EMBED_URL = 'https://www.weatherlink.com/embeddablePage/show/745c3c317c794f5a81f5a777bde785b5/summary';
+
+        const WL_DESC_ES = {
+            'Sunny':'Soleado','Clear':'Despejado','Partly Cloudy':'Parcialmente nublado',
+            'Mostly Cloudy':'Mayormente nublado','Cloudy':'Nublado','Overcast':'Cubierto',
+            'Rain':'Lluvia','Light Rain':'Lluvia ligera','Heavy Rain':'Lluvia intensa',
+            'Showers':'Chaparrones','Drizzle':'Llovizna','Thunderstorm':'Tormenta',
+            'Snow':'Nieve','Fog':'Niebla','Haze':'Bruma'
+        };
+        const WL_DESC_ICON = {
+            'Sunny':'☀️','Clear':'🌙','Partly Cloudy':'⛅','Mostly Cloudy':'🌤',
+            'Cloudy':'☁️','Overcast':'☁️','Rain':'🌧','Light Rain':'🌦',
+            'Heavy Rain':'⛈','Showers':'🌦','Drizzle':'🌦','Thunderstorm':'⛈',
+            'Snow':'❄️','Fog':'🌫','Haze':'🌫'
+        };
+        const WL_TREND_ES = {
+            'Rising Rapidly':'Subiendo rápido ↑↑','Rising':'Subiendo ↑',
+            'Steady':'Estable →','Falling':'Bajando ↓','Falling Rapidly':'Bajando rápido ↓↓'
+        };
+        const WL_PERIOD_ES = {
+            'morning':'Mañana','afternoon':'Tarde','evening':'Tarde/Noche',
+            'night':'Noche','overnight':'Madrugada'
+        };
+
+        function wlAgeInfo(tsMs) {
+            const ageMs = Date.now() - tsMs;
+            const mins  = Math.round(ageMs / 60000);
+            const hrs   = ageMs / 3600000;
+            const days  = Math.floor(hrs / 24);
+            if (!tsMs)              return { label:'sin datos',            color:'#94a3b8', badge:'SIN DATOS' };
+            if (mins < 1)           return { label:'ahora mismo',          color:'#10b981', badge:'EN LÍNEA' };
+            if (mins < 30)          return { label:`hace ${mins} min`,     color:'#10b981', badge:'EN LÍNEA' };
+            if (hrs  < 2)           return { label:`hace ${Math.round(hrs*10)/10} h`, color:'#f59e0b', badge:'RECIENTE' };
+            if (hrs  < 24)          return { label:`hace ${Math.round(hrs)} h`,       color:'#ef4444', badge:'ANTIGUA' };
+            return { label:`hace ${days} día${days>1?'s':''}`, color:'#ef4444', badge:'DESCONECTADA' };
+        }
+
+        function renderWLStation(d) {
+            const panel  = document.getElementById('wlPanel');
+            const tsMs   = d.lastReceived || 0;
+            const age    = wlAgeInfo(tsMs);
+            const lastStr = tsMs
+                ? new Date(tsMs).toLocaleString('es-CL', { weekday:'short', day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
+                : '--';
+
+            const fmtN = (v, dec=1) => v != null ? (typeof v==='number' ? v.toFixed(dec) : v) : null;
+            const dash  = v => v != null ? v : '--';
+
+            const temp   = fmtN(d.temperature);
+            const hiT    = fmtN(d.hiTemp);
+            const loT    = fmtN(d.loTemp);
+            const hum    = d.humidity    != null ? `${d.humidity}%` : '--';
+            const baro   = d.barometer   || '--';
+            const trend  = WL_TREND_ES[d.barometerTrend] || d.barometerTrend || '--';
+            const wspd   = fmtN(d.wind);
+            const gust   = fmtN(d.gust);
+            const wdir   = d.windDir || '';
+            const rainDay    = d.rainDay    ?? d.rainToday    ?? d.rain_day    ?? null;
+            const rainSeason = d.rainSeason ?? d.seasonalRain ?? d.rainYearly  ?? null;
+            const rainRate   = d.rainRate   ?? d.rain_rate   ?? null;
+
+            // Pronóstico
+            const fc = d.forecastOverview || d.forecast || [];
+            let fcHtml = '';
+            if (fc.length > 0) {
+                fcHtml  = `<div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px;">`;
+                fcHtml += `<div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:8px; font-weight:600; letter-spacing:.05em;">📅 PRONÓSTICO (modelo numérico)</div>`;
+                fcHtml += `<div style="display:flex; flex-wrap:wrap; gap:8px;">`;
+                fc.forEach(p => {
+                    const per   = WL_PERIOD_ES[p.period]  || p.period  || '';
+                    const desc  = p.description || p.desc || '';
+                    const descES = WL_DESC_ES[desc]  || desc;
+                    const icon  = WL_DESC_ICON[desc] || '🌤';
+                    const t     = p.temp     != null ? `${p.temp}°C` : '--';
+                    const pct   = p.rainChance != null ? `${p.rainChance}%` : '--';
+                    const mm    = p.precip     != null ? `${Number(p.precip).toFixed(1)} mm` : null;
+                    const rainLabel = pct !== '--' ? pct : (mm || '--');
+                    const rColor = (p.rainChance > 30 || (p.precip > 0.5)) ? '#60a5fa' : 'var(--text-muted)';
+                    fcHtml += `
+                        <div style="background:rgba(0,0,0,0.2); border-radius:8px; padding:8px 10px; flex:1; min-width:90px; text-align:center;">
+                            <div style="font-size:0.68rem; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase;">${per}</div>
+                            <div style="font-size:1.3rem;">${icon}</div>
+                            <div style="font-size:0.72rem; color:#e2e8f0; margin-top:2px;">${descES}</div>
+                            <div style="font-size:0.9rem; font-weight:700; color:#f8fafc;">${t}</div>
+                            <div style="font-size:0.72rem; color:${rColor};">🌧 ${rainLabel}</div>
+                        </div>`;
+                });
+                fcHtml += `</div></div>`;
+            }
+
+            panel.innerHTML = `
+                <!-- Cabecera: nombre + última actualización -->
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+                    <div>
+                        <div style="font-weight:700; font-size:0.95rem;">📡 La Reserva UV · Villa Alemana</div>
+                        <div style="font-size:0.72rem; color:var(--text-muted); margin-top:3px;">
+                            Última actualización: <strong style="color:#e2e8f0;">${lastStr}</strong>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                        <span style="font-size:0.78rem; color:${age.color};">${age.label}</span>
+                        <span style="background:${age.color}22; color:${age.color}; border:1px solid ${age.color}55; border-radius:999px; padding:2px 9px; font-size:0.68rem; font-weight:700; letter-spacing:.04em;">${age.badge}</span>
+                    </div>
+                </div>
+
+                <!-- Observaciones actuales -->
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:8px; margin-bottom:10px;">
+                    <div style="background:rgba(0,0,0,0.25); border-radius:10px; padding:10px; text-align:center;">
+                        <div style="font-size:0.68rem; color:var(--text-muted); letter-spacing:.05em; margin-bottom:4px;">TEMPERATURA</div>
+                        <div style="font-size:1.7rem; font-weight:700; color:#f8fafc; line-height:1;">${temp != null ? temp+'°' : '--'}</div>
+                        ${(hiT != null || loT != null) ? `<div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">Máx ${dash(hiT)}° · Mín ${dash(loT)}°</div>` : ''}
+                    </div>
+                    <div style="background:rgba(0,0,0,0.25); border-radius:10px; padding:10px; text-align:center;">
+                        <div style="font-size:0.68rem; color:var(--text-muted); letter-spacing:.05em; margin-bottom:4px;">HUMEDAD</div>
+                        <div style="font-size:1.7rem; font-weight:700; color:#60a5fa; line-height:1;">${hum}</div>
+                    </div>
+                    <div style="background:rgba(0,0,0,0.25); border-radius:10px; padding:10px; text-align:center;">
+                        <div style="font-size:0.68rem; color:var(--text-muted); letter-spacing:.05em; margin-bottom:4px;">VIENTO</div>
+                        <div style="font-size:1.7rem; font-weight:700; color:#a78bfa; line-height:1;">${wspd != null ? wspd+' m/s' : '--'}</div>
+                        ${gust != null ? `<div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">Ráfaga: ${gust} m/s</div>` : ''}
+                        ${wdir ? `<div style="font-size:0.7rem; color:var(--text-muted);">${wdir}</div>` : ''}
+                    </div>
+                </div>
+
+                <!-- Presión, lluvia -->
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    <div style="background:rgba(0,0,0,0.25); border-radius:10px; padding:9px 14px; flex:1; min-width:130px;">
+                        <div style="font-size:0.68rem; color:var(--text-muted); letter-spacing:.05em;">📊 PRESIÓN</div>
+                        <div style="font-weight:700; font-size:1rem; margin-top:2px;">${baro !== '--' ? baro+' hPa' : '--'}</div>
+                        <div style="font-size:0.72rem; color:var(--text-muted);">${trend}</div>
+                    </div>
+                    ${rainDay != null ? `
+                    <div style="background:rgba(0,0,0,0.25); border-radius:10px; padding:9px 14px; flex:1; min-width:110px;">
+                        <div style="font-size:0.68rem; color:var(--text-muted); letter-spacing:.05em;">🌧 LLUVIA HOY</div>
+                        <div style="font-weight:700; font-size:1rem; margin-top:2px;">${rainDay} mm</div>
+                    </div>` : ''}
+                    ${rainSeason != null ? `
+                    <div style="background:rgba(0,0,0,0.25); border-radius:10px; padding:9px 14px; flex:1; min-width:130px;">
+                        <div style="font-size:0.68rem; color:var(--text-muted); letter-spacing:.05em;">🌧 LLUVIA ESTACIONAL</div>
+                        <div style="font-weight:700; font-size:1rem; margin-top:2px;">${rainSeason} mm</div>
+                    </div>` : ''}
+                    ${rainRate != null ? `
+                    <div style="background:rgba(0,0,0,0.25); border-radius:10px; padding:9px 14px; flex:1; min-width:110px;">
+                        <div style="font-size:0.68rem; color:var(--text-muted); letter-spacing:.05em;">🌧 TASA LLUVIA</div>
+                        <div style="font-weight:700; font-size:1rem; margin-top:2px;">${rainRate} mm/h</div>
+                    </div>` : ''}
+                </div>
+
+                ${fcHtml}
+
+                <div style="text-align:right; margin-top:10px; font-size:0.68rem; color:var(--text-muted);">
+                    Fuente: IFA-UV / WeatherLink · consultado ${new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}
+                </div>`;
+        }
+
+        async function fetchWLStation() {
+            const panel = document.getElementById('wlPanel');
+            if (!panel) return;
+            try {
+                const r = await fetch(WL_DATA_URL);
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const data = await r.json();
+                renderWLStation(data);
+            } catch(e) {
+                // CORS bloqueado → fallback iframe WeatherLink
+                panel.innerHTML = `
+                    <div style="font-size:0.8rem; color:var(--text-muted); text-align:center; margin-bottom:8px;">
+                        📡 <strong>La Reserva UV · Villa Alemana</strong>
+                        <span style="font-size:0.7rem;">(widget oficial — CORS bloqueó acceso directo)</span>
+                    </div>
+                    <iframe src="${WL_EMBED_URL}" frameborder="0"
+                        style="width:100%; height:360px; border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
+                    </iframe>
+                    <div style="text-align:right; font-size:0.68rem; color:var(--text-muted); margin-top:6px;">
+                        Verificado: ${new Date().toLocaleString('es-CL',{dateStyle:'short',timeStyle:'short'})}
+                    </div>`;
+            }
+        }
 
         async function fetchIrrigationLog() {
             try {
