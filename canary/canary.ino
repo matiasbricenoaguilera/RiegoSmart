@@ -1,4 +1,4 @@
-// SKETCH CANARY — diagnóstico de hardware vs software
+ // SKETCH CANARY — diagnóstico de hardware vs software
 // Flashear ANTES que central.ino para determinar causa del loop rst:0x3.
 //
 // SIN WiFi, SIN U8g2, SIN Preferences, SIN WDT.
