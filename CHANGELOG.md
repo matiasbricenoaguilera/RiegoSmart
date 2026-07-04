@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-03 (dashboard – gráficos con riegos/umbral, raw por sonda, parar todo)
+- **`graficos.html` — series dinámicas**: grafica **todas las estaciones presentes** en la ventana (antes solo E1/E2 fijas), con nombre y color de zona consistentes con `index.html`/`schedule.html`, y **filtro por estación**.
+- **`graficos.html` — marcas de riego**: plugin Chart.js que dibuja líneas verticales desde `irrigation_log` (💧 completado / ⛔ cancelado, color de la zona). Los completados se insertan al cerrar la auditoría (+3 h), así que la hora de inicio se estima restando `AUDIT_DELAY_MS`. Checkbox para ocultarlas.
+- **`graficos.html` — línea de umbral**: al filtrar por estación se dibuja el umbral (`vwcThreshold`) de la primera zona habilitada del programa activo que usa esa estación.
+- **`graficos.html` — gráfico raw por sonda**: nueva tarjeta que grafica `sensor_raw` (ADC 0–4095) de las 3 sondas de la estación elegida — para detectar sondas sueltas, deriva y recalibrar seco/mojado sin ir a la central. Refresco cada 60 s.
+- **`graficos.html` — rango 7 días** añadido al selector.
+- **`index.html` — botón "⏹ Parar todo"**: inserta `remote_commands` con `target_state=false` solo para las bombas encendidas (con confirmación); reutiliza el flujo `pendingCommands` existente.
+
 ## 2026-04-21
 - **`graficos.html`**: vista por **tiempo** (6 h por defecto, 12 h, 24 h, **48 h**) con `created_at >= …`; máx. **1000** filas desde Supabase. **Chart.js 4 + eje `time`** (`chartjs-adapter-date-fns`): cada estación con puntos `{x,y}` propios → **líneas continuas por serie** sin rellenar con la otra. Hasta **240 puntos por estación** (submuestreo). Opciones por N filas globales conservadas.
 - **`graficos.html`**: **sin relleno** entre muestras de distinta estación en el modelo anterior; sustituido por **series temporales independientes** (ver arriba).

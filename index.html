@@ -60,8 +60,9 @@
         </nav>
     </header>
     <div class="container">
-        <div style="text-align: center; margin-bottom: 1rem;">
+        <div style="text-align: center; margin-bottom: 1rem; display:flex; justify-content:center; align-items:center; gap:16px; flex-wrap:wrap;">
             <p style="color:var(--text-muted)">Programa Activo: <strong id="activeProgName" style="color:var(--accent)">--</strong></p>
+            <button id="stopAllBtn" onclick="stopAll(this)" style="background:rgba(239,68,68,0.15); color:var(--danger); border:1px solid rgba(239,68,68,0.4); padding:0.5rem 1.2rem; border-radius:8px; font-weight:600; cursor:pointer; min-height:40px;">⏹ Parar todo</button>
         </div>
         <!-- Panel clima (oculto hasta tener datos del firmware) -->
         <div id="weatherPanel" style="background:rgba(30,41,59,0.8); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px 20px; margin-bottom:1.5rem; flex-wrap:wrap; gap:16px; align-items:center; justify-content:center; font-size:0.85rem; display:none;">
@@ -427,6 +428,26 @@
                     if (rem <= 0) clearCountdown(idx);
                 });
             }, 1000);
+        }
+
+        // Apaga todas las bombas encendidas (la central procesa 1 comando cada ~10 s,
+        // pero enforceSinglePump garantiza que como máximo hay 1 encendida)
+        async function stopAll(btn) {
+            const onIdx = lastDecisions.map((d, i) => d.active === true ? i : -1).filter(i => i >= 0);
+            if (!onIdx.length) { alert('No hay bombas encendidas.'); return; }
+            if (!confirm(`¿Apagar ${onIdx.length === 1 ? 'la bomba ' + (onIdx[0] + 1) : onIdx.length + ' bombas'}?`)) return;
+            btn.disabled = true; btn.innerText = '⏳ Enviando...';
+            try {
+                const rows = onIdx.map(i => ({ pump_id: i, target_state: false }));
+                const { error } = await supabaseClient.from('remote_commands').insert(rows);
+                if (error) throw error;
+                onIdx.forEach(i => pendingCommands[i] = { time: Date.now(), expectedActive: false });
+                renderPumps(lastDecisions);
+            } catch (e) {
+                console.error('Error enviando parada total', e);
+                alert('Error al enviar comando.');
+            }
+            btn.disabled = false; btn.innerText = '⏹ Parar todo';
         }
 
         function retryPending(id, btnElement) {

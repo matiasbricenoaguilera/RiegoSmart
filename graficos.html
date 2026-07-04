@@ -12,7 +12,7 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
         :root {
             --bg-color: #0f172a; --card-bg: rgba(30, 41, 59, 0.7); --text-main: #f8fafc; --text-muted: #94a3b8;
-            --accent: #3b82f6; --success: #10b981;
+            --accent: #3b82f6; --success: #10b981; --warn: #f59e0b;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
         body { background: var(--bg-color); color: var(--text-main); min-height: 100vh; overflow-x: hidden; }
@@ -24,11 +24,16 @@
         .container { max-width: 1000px; margin: 1.5rem auto; padding: 0 1rem; }
         .card { background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.5rem; text-align: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 2rem; }
         .chart-container { position: relative; height: 360px; width: 100%; max-width: 100%; }
-        select { padding: 8px; border-radius: 8px; background: #1e293b; color: white; border: 1px solid #3b82f6; margin-bottom: 12px; min-height: 38px; max-width: 100%; }
+        select { padding: 8px; border-radius: 8px; background: #1e293b; color: white; border: 1px solid #3b82f6; min-height: 38px; max-width: 100%; }
+        .controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; align-items: center; margin-bottom: 12px; }
+        .controls label.chk { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text-muted); cursor: pointer; }
+        .controls input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
         .range-hint { color: var(--text-muted); font-size: 0.8rem; margin-bottom: 14px; line-height: 1.35; }
+        .marker-hint { color: var(--text-muted); font-size: 0.75rem; margin-top: 10px; line-height: 1.4; }
         @media (max-width: 600px) {
             .chart-container { height: 260px; }
             .card { padding: 1rem; }
+            .controls { justify-content: center; }
         }
     </style>
 </head>
@@ -46,18 +51,28 @@
     <div class="container">
         <div class="card">
             <h2>Humedad Promedio del Suelo</h2>
-            <p style="color:var(--text-muted); margin-bottom:15px; font-size: 0.9em;">
-                Evolución de las zonas Antejardín (E1) y Huerta (E2)
+            <p style="color:var(--text-muted); margin:6px 0 15px; font-size: 0.9em;">
+                Todas las estaciones con datos en la ventana elegida
             </p>
             <p class="range-hint" id="rangeHint">
-                Eje <strong>tiempo real</strong>: cada serie une solo lecturas de su estación (sin rellenar con la otra). Hasta <strong>240 puntos por estación</strong> si hay muchas filas. Máx. <strong>1000</strong> filas desde Supabase por consulta.
+                Eje <strong>tiempo real</strong>: cada serie une solo lecturas de su estación. Hasta <strong>240 puntos por estación</strong>. Máx. <strong>1000</strong> filas desde Supabase por consulta.
             </p>
-            <div style="text-align: right;">
-                <select id="timeRange" onchange="fetchGraphData()">
+            <div class="controls">
+                <label class="chk"><input type="checkbox" id="showRiegos" checked onchange="fetchGraphData()"> 💧 Marcar riegos</label>
+                <select id="stationFilter" onchange="fetchGraphData()">
+                    <option value="all" selected>Todas las estaciones</option>
+                    <option value="1">E1 · Antejardín</option>
+                    <option value="2">E2 · Huerta</option>
+                    <option value="3">E3 · Patio</option>
+                    <option value="4">E4 · Entrada Auto</option>
+                    <option value="5">E5 · Macetas</option>
+                </select>
+                <select id="timeRange" onchange="fetchGraphData(); fetchRawData();">
                     <option value="hours:6" selected>Últimas 6 horas</option>
                     <option value="hours:12">Últimas 12 horas</option>
                     <option value="hours:24">Últimas 24 horas</option>
                     <option value="hours:48">Últimas 48 horas</option>
+                    <option value="hours:168">Últimos 7 días</option>
                     <option value="rows:50">Últimas 50 filas (global)</option>
                     <option value="rows:100">Últimas 100 filas (global)</option>
                 </select>
@@ -66,10 +81,35 @@
             <div class="chart-container">
                 <canvas id="humidityChart"></canvas>
             </div>
+            <p class="marker-hint" id="markerHint" style="display:none;">
+                💧 línea vertical = riego completado (hora de inicio estimada) · ⛔ línea punteada = riego cancelado ·
+                ─ ─ línea horizontal = umbral de la zona (al filtrar por estación)
+            </p>
             <p id="liveIndicator" style="color:var(--success); font-weight:600; margin-top:10px;">
                 Estado en vivo: consultando último dato...
             </p>
             <p id="loadingMsg" style="color:var(--accent); font-weight:bold; margin-top:10px;">Cargando datos desde Supabase...</p>
+        </div>
+
+        <div class="card">
+            <h2>🔬 Señal cruda por sonda (sensor_raw)</h2>
+            <p style="color:var(--text-muted); margin:6px 0 15px; font-size: 0.9em;">
+                Valor ADC directo de cada sonda del satélite (antes de calibración). Útil para detectar sondas sueltas,
+                deriva o recalibrar seco/mojado. Mismo rango de tiempo que el gráfico de arriba (los modos "filas" usan 24 h).
+            </p>
+            <div class="controls">
+                <select id="rawStation" onchange="fetchRawData()">
+                    <option value="1" selected>Estación 1 · Antejardín</option>
+                    <option value="2">Estación 2 · Huerta</option>
+                    <option value="3">Estación 3 · Patio</option>
+                    <option value="4">Estación 4 · Entrada Auto</option>
+                    <option value="5">Estación 5 · Macetas</option>
+                </select>
+            </div>
+            <div class="chart-container">
+                <canvas id="rawChart"></canvas>
+            </div>
+            <p id="rawMsg" style="color:var(--text-muted); font-size:0.8rem; margin-top:10px;">Cargando raw...</p>
         </div>
     </div>
 
@@ -78,17 +118,71 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9udHlxdWlrbHJtZWJ0emN2anluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NzMzMjIsImV4cCI6MjA5MTE0OTMyMn0.rmbcm5s7HdAnljRnVHueq-qU6zgITizaBDVpqyI9-vs';
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        // Mismos nombres/colores por zona que index.html y schedule.html (índice = estación - 1)
+        const ZONES = [
+            { n: 'Antejardín',   c: '#10b981' },
+            { n: 'Huerta',       c: '#3b82f6' },
+            { n: 'Patio',        c: '#f59e0b' },
+            { n: 'Entrada Auto', c: '#a78bfa' },
+            { n: 'Macetas',      c: '#ec4899' },
+        ];
+        // Los riegos completados se insertan en irrigation_log al cerrar la auditoría,
+        // AUDIT_DELAY_MS (3 h) después de iniciar el riego → estimar inicio restando 3 h.
+        const AUDIT_DELAY_MS = 3 * 3600 * 1000;
+
         let myChart = null;
+        let rawChart = null;
         /** Máximo de puntos por estación en el gráfico (legibilidad). */
         const MAX_POINTS_PER_SERIES = 240;
         /** Máximo de filas a pedir a Supabase (PostgREST suele cap ~1000). */
         const MAX_ROWS_FETCH = 1000;
 
+        // Config de bombas (programa activo) para dibujar el umbral al filtrar por estación
+        let pumpsCfg = null, activeProgram = 0;
+
         window.onload = () => {
+            fetchPumpsCfg();
             fetchGraphData();
+            fetchRawData();
             // Misma cadencia que el indicador: antes 2 min dejaba el eje X desactualizado vs "último dato hace Xm"
             setInterval(fetchGraphData, 20000);
+            setInterval(fetchRawData, 60000);    // satélites publican cada 5 min
+            setInterval(fetchPumpsCfg, 5 * 60 * 1000);
         };
+
+        async function fetchPumpsCfg() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('system_state')
+                    .select('active_program, pumps')
+                    .eq('id', 1)
+                    .single();
+                if (!error && data) {
+                    activeProgram = data.active_program || 0;
+                    pumpsCfg = Array.isArray(data.pumps) ? data.pumps : null;
+                }
+            } catch (e) { /* umbral es opcional; el gráfico funciona sin él */ }
+        }
+
+        /** Umbral de la primera zona habilitada que usa esta estación (programa activo). */
+        function thresholdForStation(st) {
+            if (!pumpsCfg) return null;
+            for (let i = 0; i < pumpsCfg.length; i++) {
+                const cfg = (pumpsCfg[i].programs || [])[activeProgram];
+                if (!cfg || cfg.enabled === false) continue;
+                if (Number(cfg.assignedStationID) === st && cfg.vwcThreshold != null) {
+                    return { y: Number(cfg.vwcThreshold), color: '#f59e0b', label: `Umbral Z${i + 1}: ${cfg.vwcThreshold}%` };
+                }
+            }
+            return null;
+        }
+
+        /** Estación asignada a una zona (para colorear/filtrar marcas de riego). */
+        function stationForZone(zoneId) {
+            if (!pumpsCfg || !pumpsCfg[zoneId - 1]) return zoneId;
+            const cfg = (pumpsCfg[zoneId - 1].programs || [])[activeProgram];
+            return cfg ? Number(cfg.assignedStationID) || zoneId : zoneId;
+        }
 
         /** Reduce puntos {x,y} conservando orden temporal. */
         function downsampleXY(points, maxN) {
@@ -145,9 +239,42 @@
             }
         }
 
+        /** Eventos de riego dentro de la ventana [xMin, xMax] para marcar en el gráfico. */
+        async function fetchIrrigationEvents(xMin, xMax, stationFilter) {
+            try {
+                // Margen extra: los completados se insertan hasta 3 h después del inicio real
+                const sinceISO = new Date((xMin || Date.now() - 48 * 3600 * 1000)).toISOString();
+                const { data, error } = await supabaseClient
+                    .from('irrigation_log')
+                    .select('zone_id, duration_mins, liters, cancelled, reason, created_at')
+                    .gte('created_at', sinceISO)
+                    .order('created_at', { ascending: true })
+                    .limit(100);
+                if (error || !data) return [];
+                const events = [];
+                for (const r of data) {
+                    const logged = new Date(r.created_at).getTime();
+                    if (Number.isNaN(logged)) continue;
+                    const t = r.cancelled ? logged : logged - AUDIT_DELAY_MS;
+                    if (xMin != null && t < xMin) continue;
+                    if (xMax != null && t > xMax) continue;
+                    const st = stationForZone(r.zone_id);
+                    if (stationFilter !== 'all' && st !== Number(stationFilter)) continue;
+                    events.push({
+                        t,
+                        cancelled: !!r.cancelled,
+                        color: (ZONES[r.zone_id - 1] || { c: '#64748b' }).c,
+                    });
+                }
+                return events;
+            } catch (e) { return []; }
+        }
+
         async function fetchGraphData() {
             document.getElementById('loadingMsg').style.display = 'block';
             const mode = document.getElementById('timeRange').value;
+            const stationFilter = document.getElementById('stationFilter').value;
+            const showRiegos = document.getElementById('showRiegos').checked;
             const hint = document.getElementById('rangeHint');
 
             try {
@@ -159,8 +286,9 @@
                         const hours = parseInt(mode.split(':')[1], 10) || 6;
                         const sinceMs = Date.now() - hours * 3600 * 1000;
                         xMin = sinceMs;
+                        const hLabel = hours >= 24 ? `${Math.round(hours / 24)} día${hours >= 48 ? 's' : ''}` : `${hours} h`;
                         hint.innerHTML =
-                            `Ventana <strong>${hours} h</strong>: eje temporal; cada línea solo une lecturas <strong>de su estación</strong>. Si hay más de ${MAX_POINTS_PER_SERIES} puntos por estación, se submuestrea. Máx. ${MAX_ROWS_FETCH} filas por consulta.`;
+                            `Ventana <strong>${hLabel}</strong>: eje temporal; cada línea solo une lecturas <strong>de su estación</strong>. Si hay más de ${MAX_POINTS_PER_SERIES} puntos por estación, se submuestrea. Máx. ${MAX_ROWS_FETCH} filas por consulta.`;
                         return supabaseClient
                             .from('sensor_data')
                             .select('*')
@@ -189,12 +317,23 @@
                     }
                 }
 
-                let pts1 = buildSeriesForStation(data, 1);
-                let pts2 = buildSeriesForStation(data, 2);
-                if (pts1.length > MAX_POINTS_PER_SERIES) pts1 = downsampleXY(pts1, MAX_POINTS_PER_SERIES);
-                if (pts2.length > MAX_POINTS_PER_SERIES) pts2 = downsampleXY(pts2, MAX_POINTS_PER_SERIES);
+                // Series dinámicas: todas las estaciones presentes en los datos (respetando el filtro)
+                const stations = [...new Set(data.map(r => Number(r.estacion)))]
+                    .filter(st => st >= 1 && st <= 5)
+                    .filter(st => stationFilter === 'all' || st === Number(stationFilter))
+                    .sort((a, b) => a - b);
+                const series = stations.map(st => {
+                    let pts = buildSeriesForStation(data, st);
+                    if (pts.length > MAX_POINTS_PER_SERIES) pts = downsampleXY(pts, MAX_POINTS_PER_SERIES);
+                    const z = ZONES[st - 1] || { n: `Estación ${st}`, c: '#64748b' };
+                    return { label: `${z.n} (E${st})`, color: z.c, pts };
+                });
 
-                renderChart(pts1, pts2, xMin, xMax);
+                const events = showRiegos ? await fetchIrrigationEvents(xMin, xMax, stationFilter) : [];
+                const threshold = stationFilter !== 'all' ? thresholdForStation(Number(stationFilter)) : null;
+                document.getElementById('markerHint').style.display = (events.length || threshold) ? 'block' : 'none';
+
+                renderChart(series, xMin, xMax, events, threshold);
                 fetchLiveIndicator();
                 document.getElementById('loadingMsg').style.display = 'none';
 
@@ -205,14 +344,56 @@
             }
         }
 
-        function renderChart(pts1, pts2, xMin, xMax) {
-            const ctx = document.getElementById('humidityChart').getContext('2d');
+        // Plugin: líneas verticales de riego (💧 completado / ⛔ cancelado) + umbral horizontal
+        const riegoMarkersPlugin = {
+            id: 'riegoMarkers',
+            afterDatasetsDraw(chart, args, opts) {
+                const xs = chart.scales.x, ys = chart.scales.y, ctx = chart.ctx;
+                if (!xs || !ys) return;
+                (opts.events || []).forEach(ev => {
+                    const px = xs.getPixelForValue(ev.t);
+                    if (px < xs.left || px > xs.right) return;
+                    ctx.save();
+                    ctx.strokeStyle = ev.color;
+                    ctx.setLineDash(ev.cancelled ? [2, 4] : [6, 4]);
+                    ctx.lineWidth = ev.cancelled ? 1 : 1.5;
+                    ctx.globalAlpha = 0.75;
+                    ctx.beginPath();
+                    ctx.moveTo(px, ys.top);
+                    ctx.lineTo(px, ys.bottom);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.globalAlpha = 1;
+                    ctx.font = '11px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(ev.cancelled ? '⛔' : '💧', px, ys.top + 12);
+                    ctx.restore();
+                });
+                if (opts.threshold) {
+                    const py = ys.getPixelForValue(opts.threshold.y);
+                    if (py >= ys.top && py <= ys.bottom) {
+                        ctx.save();
+                        ctx.strokeStyle = opts.threshold.color;
+                        ctx.setLineDash([8, 6]);
+                        ctx.lineWidth = 1.5;
+                        ctx.globalAlpha = 0.85;
+                        ctx.beginPath();
+                        ctx.moveTo(xs.left, py);
+                        ctx.lineTo(xs.right, py);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                        ctx.font = '11px sans-serif';
+                        ctx.textAlign = 'right';
+                        ctx.fillStyle = opts.threshold.color;
+                        ctx.fillText(opts.threshold.label, xs.right - 6, py - 5);
+                        ctx.restore();
+                    }
+                }
+            },
+        };
 
-            if (myChart != null) {
-                myChart.destroy();
-            }
-
-            const xScale = {
+        function timeScale(xMin, xMax) {
+            return {
                 type: 'time',
                 min: xMin != null ? xMin : undefined,
                 max: xMax != null ? xMax : undefined,
@@ -234,38 +415,131 @@
                 },
                 grid: { color: 'rgba(255,255,255,0.05)' },
             };
+        }
+
+        const tooltipTitleEsCl = (items) => {
+            if (!items.length) return '';
+            const x = items[0].parsed.x;
+            return new Date(x).toLocaleString('es-CL', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+            });
+        };
+
+        function renderChart(series, xMin, xMax, events, threshold) {
+            const ctx = document.getElementById('humidityChart').getContext('2d');
+
+            if (myChart != null) {
+                myChart.destroy();
+            }
 
             myChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    datasets: [
-                        {
-                            label: 'Antejardín (Promedio E1)',
-                            data: pts1,
-                            parsing: false,
-                            borderColor: '#10b981',
-                            backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                            borderWidth: 2,
-                            pointRadius: 3,
-                            pointHoverRadius: 6,
-                            spanGaps: false,
-                            fill: false,
-                            tension: 0.15,
+                    datasets: series.map(s => ({
+                        label: s.label,
+                        data: s.pts,
+                        parsing: false,
+                        borderColor: s.color,
+                        backgroundColor: s.color + '14',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        spanGaps: false,
+                        fill: false,
+                        tension: 0.15,
+                    })),
+                },
+                plugins: [riegoMarkersPlugin],
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'nearest', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#f8fafc' } },
+                        riegoMarkers: { events: events || [], threshold: threshold || null },
+                        tooltip: {
+                            callbacks: {
+                                title: tooltipTitleEsCl,
+                                label(ctx) {
+                                    const v = ctx.parsed.y;
+                                    return `${ctx.dataset.label}: ${v != null ? v.toFixed(1) : '—'}%`;
+                                },
+                            },
                         },
-                        {
-                            label: 'Huerta (Promedio E2)',
-                            data: pts2,
-                            parsing: false,
-                            borderColor: '#3b82f6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.08)',
-                            borderWidth: 2,
-                            pointRadius: 3,
-                            pointHoverRadius: 6,
-                            spanGaps: false,
-                            fill: false,
-                            tension: 0.15,
+                    },
+                    scales: {
+                        x: timeScale(xMin, xMax),
+                        y: {
+                            ticks: { color: '#94a3b8', callback: function (val) { return val + '%'; } },
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            min: 0,
+                            max: 100,
                         },
-                    ],
+                    },
+                },
+            });
+        }
+
+        // ── Gráfico raw por sonda ─────────────────────────────────────
+        const RAW_COLORS = ['#60a5fa', '#f472b6', '#facc15'];
+
+        async function fetchRawData() {
+            const msg = document.getElementById('rawMsg');
+            const st = parseInt(document.getElementById('rawStation').value, 10);
+            const mode = document.getElementById('timeRange').value;
+            const hours = mode.startsWith('hours:') ? (parseInt(mode.split(':')[1], 10) || 24) : 24;
+            const sinceMs = Date.now() - hours * 3600 * 1000;
+            try {
+                const { data, error } = await supabaseClient
+                    .from('sensor_raw')
+                    .select('sensor_id, raw_value, created_at')
+                    .eq('estacion', st)
+                    .gte('created_at', new Date(sinceMs).toISOString())
+                    .order('created_at', { ascending: true })
+                    .limit(MAX_ROWS_FETCH);
+                if (error) throw error;
+
+                const bySensor = { 1: [], 2: [], 3: [] };
+                (data || []).forEach(r => {
+                    const t = new Date(r.created_at).getTime();
+                    if (Number.isNaN(t) || !bySensor[r.sensor_id]) return;
+                    bySensor[r.sensor_id].push({ x: t, y: Number(r.raw_value) });
+                });
+                Object.keys(bySensor).forEach(sid => {
+                    if (bySensor[sid].length > MAX_POINTS_PER_SERIES)
+                        bySensor[sid] = downsampleXY(bySensor[sid], MAX_POINTS_PER_SERIES);
+                });
+
+                const total = (data || []).length;
+                msg.innerText = total
+                    ? `${total} lecturas raw de E${st} en las últimas ${hours} h · raw alto = seco, raw bajo = húmedo`
+                    : `Sin lecturas raw de la estación ${st} en las últimas ${hours} h (¿satélite apagado o ESP-NOW legacy?)`;
+                renderRawChart(bySensor, sinceMs, Date.now());
+            } catch (e) {
+                console.error('Error raw', e);
+                msg.innerText = 'Error cargando sensor_raw.';
+            }
+        }
+
+        function renderRawChart(bySensor, xMin, xMax) {
+            const ctx = document.getElementById('rawChart').getContext('2d');
+            if (rawChart != null) rawChart.destroy();
+            rawChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [1, 2, 3].map(sid => ({
+                        label: `Sonda ${sid}`,
+                        data: bySensor[sid] || [],
+                        parsing: false,
+                        borderColor: RAW_COLORS[sid - 1],
+                        borderWidth: 2,
+                        pointRadius: 2,
+                        pointHoverRadius: 5,
+                        spanGaps: false,
+                        fill: false,
+                        tension: 0.1,
+                    })),
                 },
                 options: {
                     responsive: true,
@@ -275,28 +549,21 @@
                         legend: { labels: { color: '#f8fafc' } },
                         tooltip: {
                             callbacks: {
-                                title(items) {
-                                    if (!items.length) return '';
-                                    const x = items[0].parsed.x;
-                                    return new Date(x).toLocaleString('es-CL', {
-                                        day: '2-digit', month: '2-digit', year: 'numeric',
-                                        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-                                    });
-                                },
+                                title: tooltipTitleEsCl,
                                 label(ctx) {
                                     const v = ctx.parsed.y;
-                                    return `${ctx.dataset.label}: ${v != null ? v.toFixed(1) : '—'}%`;
+                                    return `${ctx.dataset.label}: ${v != null ? Math.round(v) : '—'} (raw)`;
                                 },
                             },
                         },
                     },
                     scales: {
-                        x: xScale,
+                        x: timeScale(xMin, xMax),
                         y: {
-                            ticks: { color: '#94a3b8', callback: function (val) { return val + '%'; } },
+                            ticks: { color: '#94a3b8' },
                             grid: { color: 'rgba(255,255,255,0.05)' },
-                            min: 0,
-                            max: 100,
+                            suggestedMin: 0,
+                            suggestedMax: 4095,
                         },
                     },
                 },
