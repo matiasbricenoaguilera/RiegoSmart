@@ -192,6 +192,10 @@
         }
 
         async function togglePump(id, turnOn, btnElement) {
+            // enabled=false solo bloquea el riego automático; el manual pide confirmación explícita
+            const zoneDisabled = lastDecisions[id] && lastDecisions[id].enabled === false;
+            if (turnOn && zoneDisabled &&
+                !confirm(`La zona ${id + 1} está deshabilitada (no riega en automático).\n¿Encenderla igual en modo manual?`)) return;
             btnElement.innerText = '⏳ Enviando...';
             btnElement.style.opacity = '0.6';
             btnElement.disabled = true;

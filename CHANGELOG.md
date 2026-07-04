@@ -7,6 +7,7 @@
 - **`graficos.html` — gráfico raw por sonda**: nueva tarjeta que grafica `sensor_raw` (ADC 0–4095) de las 3 sondas de la estación elegida — para detectar sondas sueltas, deriva y recalibrar seco/mojado sin ir a la central. Refresco cada 60 s.
 - **`graficos.html` — rango 7 días** añadido al selector.
 - **`index.html` — botón "⏹ Parar todo"**: inserta `remote_commands` con `target_state=false` solo para las bombas encendidas (con confirmación); reutiliza el flujo `pendingCommands` existente.
+- **`index.html` — confirmación al encender zona deshabilitada**: `enabled=false` solo bloquea el riego automático en el firmware; el botón ENCENDER manual funcionaba sin aviso. Ahora pide confirmación explícita ("¿Encenderla igual en modo manual?"). Mismo cambio en el panel local de la central.
 
 ## 2026-04-21
 - **`graficos.html`**: vista por **tiempo** (6 h por defecto, 12 h, 24 h, **48 h**) con `created_at >= …`; máx. **1000** filas desde Supabase. **Chart.js 4 + eje `time`** (`chartjs-adapter-date-fns`): cada estación con puntos `{x,y}` propios → **líneas continuas por serie** sin rellenar con la otra. Hasta **240 puntos por estación** (submuestreo). Opciones por N filas globales conservadas.
