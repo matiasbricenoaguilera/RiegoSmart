@@ -30,6 +30,11 @@
         .controls input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
         .range-hint { color: var(--text-muted); font-size: 0.8rem; margin-bottom: 14px; line-height: 1.35; }
         .marker-hint { color: var(--text-muted); font-size: 0.75rem; margin-top: 10px; line-height: 1.4; }
+        /* Leyenda estilo panel local: casilla + punto de color por estación */
+        .leg { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin-top: 10px; font-size: 0.8rem; color: var(--text-muted); }
+        .leg label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        .leg input { accent-color: var(--accent); cursor: pointer; }
+        .leg .dot { width: 10px; height: 10px; border-radius: 5px; display: inline-block; }
         @media (max-width: 600px) {
             .chart-container { height: 260px; }
             .card { padding: 1rem; }
@@ -68,9 +73,9 @@
                     <option value="5">E5 · Macetas</option>
                 </select>
                 <select id="timeRange" onchange="fetchGraphData(); fetchRawData();">
-                    <option value="hours:6" selected>Últimas 6 horas</option>
+                    <option value="hours:6">Últimas 6 horas</option>
                     <option value="hours:12">Últimas 12 horas</option>
-                    <option value="hours:24">Últimas 24 horas</option>
+                    <option value="hours:24" selected>Últimas 24 horas</option>
                     <option value="hours:48">Últimas 48 horas</option>
                     <option value="hours:168">Últimos 7 días</option>
                     <option value="rows:50">Últimas 50 filas (global)</option>
@@ -81,8 +86,9 @@
             <div class="chart-container">
                 <canvas id="humidityChart"></canvas>
             </div>
+            <div class="leg" id="humLegend"></div>
             <p class="marker-hint" id="markerHint" style="display:none;">
-                💧 línea vertical = riego completado (hora de inicio estimada) · ⛔ línea punteada = riego cancelado ·
+                Franja sombreada = riego completado (inicio estimado, ancho = duración) · ⛔ línea punteada = riego cancelado ·
                 ─ ─ línea horizontal = umbral de la zona (al filtrar por estación)
             </p>
             <p id="liveIndicator" style="color:var(--success); font-weight:600; margin-top:10px;">
@@ -131,6 +137,8 @@
         const AUDIT_DELAY_MS = 3 * 3600 * 1000;
 
         let myChart = null;
+        /** Estaciones ocultas desde la leyenda; sobrevive al refresco cada 20 s. */
+        const hiddenSt = new Set();
         let rawChart = null;
         /** Máximo de puntos por estación en el gráfico (legibilidad). */
         const MAX_POINTS_PER_SERIES = 240;
@@ -262,8 +270,10 @@
                     if (stationFilter !== 'all' && st !== Number(stationFilter)) continue;
                     events.push({
                         t,
+                        st,
+                        durMs: (Number(r.duration_mins) || 0) * 60000,
                         cancelled: !!r.cancelled,
-                        color: (ZONES[r.zone_id - 1] || { c: '#64748b' }).c,
+                        color: (ZONES[st - 1] || { c: '#64748b' }).c,  // mismo color que la línea de su estación
                     });
                 }
                 return events;
@@ -326,7 +336,7 @@
                     let pts = buildSeriesForStation(data, st);
                     if (pts.length > MAX_POINTS_PER_SERIES) pts = downsampleXY(pts, MAX_POINTS_PER_SERIES);
                     const z = ZONES[st - 1] || { n: `Estación ${st}`, c: '#64748b' };
-                    return { label: `${z.n} (E${st})`, color: z.c, pts };
+                    return { st, label: `${z.n} (E${st})`, color: z.c, pts };
                 });
 
                 const events = showRiegos ? await fetchIrrigationEvents(xMin, xMax, stationFilter) : [];
@@ -344,19 +354,36 @@
             }
         }
 
-        // Plugin: líneas verticales de riego (💧 completado / ⛔ cancelado) + umbral horizontal
+        // Plugin estilo panel local: franjas sombreadas de riego detrás de las líneas,
+        // ⛔ punteada para cancelados y umbral horizontal encima.
         const riegoMarkersPlugin = {
             id: 'riegoMarkers',
+            beforeDatasetsDraw(chart, args, opts) {
+                const xs = chart.scales.x, ys = chart.scales.y, ctx = chart.ctx;
+                if (!xs || !ys) return;
+                (opts.events || []).forEach(ev => {
+                    if (ev.cancelled || hiddenSt.has(ev.st)) return;
+                    let x0 = xs.getPixelForValue(ev.t), x1 = xs.getPixelForValue(ev.t + ev.durMs);
+                    if (x1 - x0 < 3) { const m = (x0 + x1) / 2; x0 = m - 1.5; x1 = m + 1.5; }  // visible aunque sea corto
+                    x0 = Math.max(x0, xs.left); x1 = Math.min(x1, xs.right);
+                    if (x1 <= x0) return;
+                    ctx.save();
+                    ctx.fillStyle = ev.color + '26';
+                    ctx.fillRect(x0, ys.top, x1 - x0, ys.bottom - ys.top);
+                    ctx.restore();
+                });
+            },
             afterDatasetsDraw(chart, args, opts) {
                 const xs = chart.scales.x, ys = chart.scales.y, ctx = chart.ctx;
                 if (!xs || !ys) return;
                 (opts.events || []).forEach(ev => {
+                    if (!ev.cancelled || hiddenSt.has(ev.st)) return;
                     const px = xs.getPixelForValue(ev.t);
                     if (px < xs.left || px > xs.right) return;
                     ctx.save();
                     ctx.strokeStyle = ev.color;
-                    ctx.setLineDash(ev.cancelled ? [2, 4] : [6, 4]);
-                    ctx.lineWidth = ev.cancelled ? 1 : 1.5;
+                    ctx.setLineDash([2, 4]);
+                    ctx.lineWidth = 1;
                     ctx.globalAlpha = 0.75;
                     ctx.beginPath();
                     ctx.moveTo(px, ys.top);
@@ -366,7 +393,7 @@
                     ctx.globalAlpha = 1;
                     ctx.font = '11px sans-serif';
                     ctx.textAlign = 'center';
-                    ctx.fillText(ev.cancelled ? '⛔' : '💧', px, ys.top + 12);
+                    ctx.fillText('⛔', px, ys.top + 12);
                     ctx.restore();
                 });
                 if (opts.threshold) {
@@ -391,6 +418,48 @@
                 }
             },
         };
+
+        /** Eje X relativo como el panel local: "ahora", "-6h", "-12h"… (o "-2d" en ventanas largas). */
+        function relativeTimeScale(xMin, xMax) {
+            const HOUR = 3600 * 1000;
+            const spanH = (xMax - xMin) / HOUR;
+            const step = [1, 2, 3, 6, 12, 24, 48].find(h => spanH / h <= 6) || 48;
+            return {
+                type: 'time',
+                min: xMin,
+                max: xMax,
+                afterBuildTicks(scale) {
+                    const ticks = [];
+                    for (let h = 0; h <= spanH + 1e-6; h += step) ticks.push({ value: xMax - h * HOUR });
+                    scale.ticks = ticks.reverse();
+                },
+                ticks: {
+                    color: '#94a3b8',
+                    maxRotation: 0,
+                    autoSkip: false,
+                    font: { size: 11 },
+                    callback(value) {
+                        const h = Math.round((xMax - value) / HOUR);
+                        if (h === 0) return 'ahora';
+                        return h >= 48 && h % 24 === 0 ? `-${h / 24}d` : `-${h}h`;
+                    },
+                },
+                grid: { display: false },
+            };
+        }
+
+        function renderHumLegend(series) {
+            const leg = document.getElementById('humLegend');
+            leg.innerHTML = series.map((s, i) =>
+                `<label><input type="checkbox" data-i="${i}" data-st="${s.st}"${hiddenSt.has(s.st) ? '' : ' checked'}>` +
+                `<span class="dot" style="background:${s.color}"></span>${s.label}</label>`).join('');
+            leg.querySelectorAll('input').forEach(cb => cb.onchange = () => {
+                const st = Number(cb.dataset.st);
+                if (cb.checked) hiddenSt.delete(st); else hiddenSt.add(st);
+                myChart.setDatasetVisibility(Number(cb.dataset.i), cb.checked);
+                myChart.update();
+            });
+        }
 
         function timeScale(xMin, xMax) {
             return {
@@ -432,6 +501,7 @@
             if (myChart != null) {
                 myChart.destroy();
             }
+            if (xMin == null || xMax == null || xMax <= xMin) { xMin = Date.now() - 24 * 3600 * 1000; xMax = Date.now(); }
 
             myChart = new Chart(ctx, {
                 type: 'line',
@@ -440,23 +510,26 @@
                         label: s.label,
                         data: s.pts,
                         parsing: false,
+                        hidden: hiddenSt.has(s.st),
                         borderColor: s.color,
-                        backgroundColor: s.color + '14',
-                        borderWidth: 2,
-                        pointRadius: 3,
-                        pointHoverRadius: 6,
+                        backgroundColor: s.color,
+                        borderWidth: 1.8,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        pointHitRadius: 8,
                         spanGaps: false,
                         fill: false,
-                        tension: 0.15,
+                        tension: 0,
                     })),
                 },
                 plugins: [riegoMarkersPlugin],
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: false,
                     interaction: { mode: 'nearest', intersect: false },
                     plugins: {
-                        legend: { labels: { color: '#f8fafc' } },
+                        legend: { display: false },  // leyenda HTML con casillas (humLegend)
                         riegoMarkers: { events: events || [], threshold: threshold || null },
                         tooltip: {
                             callbacks: {
@@ -469,16 +542,18 @@
                         },
                     },
                     scales: {
-                        x: timeScale(xMin, xMax),
+                        x: relativeTimeScale(xMin, xMax),
                         y: {
-                            ticks: { color: '#94a3b8', callback: function (val) { return val + '%'; } },
-                            grid: { color: 'rgba(255,255,255,0.05)' },
                             min: 0,
                             max: 100,
+                            ticks: { color: '#94a3b8', stepSize: 25, font: { size: 11 } },
+                            grid: { color: '#2a3547' },
+                            border: { display: false },
                         },
                     },
                 },
             });
+            renderHumLegend(series);
         }
 
         // ── Gráfico raw por sonda ─────────────────────────────────────

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 (dashboard – gráfico de humedad con estilo del panel local)
+- **`graficos.html` — gráfico de humedad**: mismo estilo que el gráfico 24 h del panel local de la central: líneas finas sin puntos, **riegos como franjas sombreadas** del color de la estación (inicio estimado, ancho = `duration_mins`), eje Y en pasos de 25 %, eje X relativo ("-6h … ahora", "-2d" en ventanas largas) y **leyenda con casillas** para ocultar/mostrar estaciones (se mantiene entre refrescos). Cancelados siguen como ⛔ punteada; umbral sin cambios.
+- **`graficos.html`**: ventana por defecto **24 h** (antes 6 h).
+
 ## 2026-07-03 (dashboard – gráficos con riegos/umbral, raw por sonda, parar todo)
 - **`graficos.html` — series dinámicas**: grafica **todas las estaciones presentes** en la ventana (antes solo E1/E2 fijas), con nombre y color de zona consistentes con `index.html`/`schedule.html`, y **filtro por estación**.
 - **`graficos.html` — marcas de riego**: plugin Chart.js que dibuja líneas verticales desde `irrigation_log` (💧 completado / ⛔ cancelado, color de la zona). Los completados se insertan al cerrar la auditoría (+3 h), así que la hora de inicio se estima restando `AUDIT_DELAY_MS`. Checkbox para ocultarlas.
